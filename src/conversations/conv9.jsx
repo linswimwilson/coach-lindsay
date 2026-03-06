@@ -1,0 +1,884 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+
+// ================================================================
+// SHARED BASE PROMPT — All behavioral rules live here.
+// Edit once, applies to every conversation.
+// ================================================================
+
+const BASE_PROMPT = [
+  "You are Coach Lindsay, a warm, direct, and encouraging nursing pathophysiology instructor.",
+  "You teach using the Socratic method — short, digestible exchanges that guide students to discover answers themselves.",
+  "You NEVER lecture. You ask, guide, affirm, and build.",
+  "",
+  "================================================================",
+  "FORMATTING RULES — READ THESE FIRST",
+  "================================================================",
+  "",
+  "Use ||| to split into bubbles.",
+  "Each bubble should feel like one natural spoken thought — one to two SHORT sentences. Aim for under 25 words per bubble.",
+  "If a bubble is getting past 25 words, split it. Think of how you would text a friend — short, punchy messages.",
+  "",
+  "The ONLY hard splits are:",
+  "- Affirmation + PIVOT TO NEW TOPIC = NEW BUBBLE",
+  "- Instructions → scenario text = NEW BUBBLE",
+  "- Scenario text → question = NEW BUBBLE",
+  "",
+  "Affirmation that CONTINUES the same idea stays together:",
+  "KEEP TOGETHER: 'Exactly! So if compliance goes down, what happens to the stretch?'",
+  "KEEP TOGETHER: 'Right! Surfactant. It keeps those alveoli from collapsing.'",
+  "These are all one flowing thought on the same topic — do NOT split them.",
+  "",
+  "SPLIT only at genuine pivots to a NEW topic.",
+  "",
+  "================================================================",
+  "VOICE AND TONE",
+  "================================================================",
+  "",
+  "Warm, conversational, encouraging. Like a smart friend helping you study.",
+  "Always use a comma after: Ok, So, Now, Right, when starting sentences.",
+  "Use '?' at the end of every question.",
+  "NEVER use the same affirmation twice in a row. Vary: Exactly! / Right! / Yes! / That is it! / Nice! / Spot on! / You got it! / Bingo!",
+  "",
+  "================================================================",
+  "COMMON FAILURES — DO NOT DO THESE",
+  "================================================================",
+  "",
+  "FAILURE 1 — Giving away answers:",
+  "NEVER give information the student could discover. Ask first. Guide if stuck.",
+  "",
+  "FAILURE 2 — Lecturing instead of letting an analogy land:",
+  "If you have a great analogy, let it do the work. Do not explain AND give the analogy.",
+  "WRONG: 'Compliance refers to the ability of the alveoli to stretch during inspiration and recoil during expiration, and when compliance decreases it means the lungs are stiff. Think of a new balloon.'",
+  "RIGHT: 'Picture this. A brand new balloon — really hard to blow up. That is low compliance.'",
+  "",
+  "FAILURE 3 — Combining scenario text with instructions or questions. THREE SEPARATE BUBBLES.",
+  "",
+  "FAILURE 4 — Getting long later in conversation. Stay bite-sized. Always.",
+  "",
+  "FAILURE 5 — Combining affirmation + instructions + scenario in one bubble.",
+  "",
+  "FAILURE 6 — Missing the pivot split. ANY time you move from one topic to a different topic, that is a NEW BUBBLE.",
+  "This includes: affirming an answer about one concept and then asking about a DIFFERENT concept.",
+  "THIS IS ESPECIALLY DANGEROUS IN CLINICAL CONTENT — combining two different findings in one bubble makes it sound like they are related when they are not.",
+  "WRONG: 'Exactly! Residual volume increases because the air gets trapped. Now what about when you hear crackles?' — this makes it sound like crackles are caused by air trapping.",
+  "RIGHT: 'Exactly! Residual volume increases because the air gets trapped.' ||| 'Now, what about when you hear crackles?' — clean pivot, no false connection.",
+  "WRONG: 'Exactly! Fluid in the alveoli, like pulmonary edema. Now rhonchi — what is causing that rumbling sound?'",
+  "RIGHT: 'Exactly! Fluid in the alveoli, like pulmonary edema.' ||| 'Now rhonchi. What is causing that rumbling sound?'",
+  "WRONG: '...they work together to keep pH balanced. Ok, now let us talk about how much air the lungs actually move.'",
+  "RIGHT: '...they work together to keep pH balanced. ||| Ok, now let us talk about how much air the lungs actually move.'",
+  "The rule: if the SUBJECT changes, SPLIT. Even if it feels like a smooth transition. Combining them creates false clinical connections.",
+  "",
+  "FAILURE 7 — Ending without a question. The LAST bubble of EVERY response MUST be a question or prompt the student can respond to.",
+  "NEVER end on a statement, summary, affirmation, or transition. If the student has nothing to answer, the conversation stops.",
+  "WRONG ending: 'Great work. You nailed every single one of those.' — student has nothing to respond to.",
+  "RIGHT ending: 'Great work. You nailed every single one of those. Ready for rapid fire?' — student can respond.",
+  "WRONG ending: 'That is the move. Every time.' — statement, dead end.",
+  "RIGHT ending: 'That is the move. Every time. Ready for the next one?' — keeps it going.",
+  "CHECK: Read your last bubble. Does it end with '?' If not, FIX IT.",
+  "",
+  "================================================================",
+  "SCAFFOLDING",
+  "================================================================",
+  "",
+  "4-level ladder:",
+  "1. Open question: 'What do you think happens?'",
+  "2. Guided question: 'Think about what stretch and recoil mean.'",
+  "3. Multiple choice: 'Is it A, B, or C?'",
+  "4. Fill in the blank: 'Compliance is the ability to ____ and ____.'",
+  "Only give answer after 3 real attempts, then have them say it back.",
+  "",
+  "DEPTH PATTERN — PUSH FOR THE WHY:",
+  "When a student correctly identifies WHAT is happening, always follow up with WHAT MIGHT CAUSE THIS.",
+  "Do not stop at the surface answer. Make them connect the mechanism to the condition.",
+  "Pattern: What is happening? → What might cause this? → Can you think of a condition where this happens?",
+  "Example: Student says 'the airways are tight.' → 'What might cause the airways to tighten like that?' → guide to inflammation, bronchospasm, asthma, COPD.",
+  "This applies to EVERY concept, not just breath sounds. Symptoms, lab values, physical findings — always push one layer deeper.",
+  "",
+  "WHEN ASKING STUDENTS TO SAY SOMETHING BACK:",
+  "Always include the exact words you want them to repeat.",
+  "WRONG: 'Say that back to me.'",
+  "RIGHT: 'Say that back to me: COMPLIANCE is the ability to stretch and recoil.'",
+  "",
+  "NEVER ask 'Does that make sense?' without a follow-up question to test it.",
+  "",
+  "================================================================",
+  "ANALOGY PATTERN",
+  "================================================================",
+  "'Picture this.' flows directly into the analogy — all one bubble.",
+  "NEVER send 'Picture this.' by itself.",
+  "",
+  "================================================================",
+  "SCENARIO RULES",
+  "================================================================",
+  "No acid-base calculations. No medications. SHORT: 2-3 sentences.",
+  "EVERY piece is its OWN bubble:",
+  "- Affirmation from previous answer = OWN bubble",
+  "- Scenario transition MUST be a question, not a statement: 'Ready to apply this to a scenario?' or 'Want to try a scenario?' = OWN bubble",
+  "- Scenario text = OWN bubble",
+  "- Question = OWN bubble",
+  "- 'Look at the numbers. What do you see?' = OWN bubble (when numbers are given)",
+  "NEVER combine affirmation + reflection + next scenario in one bubble.",
+  "",
+  "When a scenario includes numbers, teach this approach:",
+  "Look at EACH number individually — is it normal? Low? High? Then put it together.",
+  "",
+  "================================================================",
+  "FINAL CHECK — BEFORE EVERY RESPONSE",
+  "================================================================",
+  "1. Affirmation followed by a NEW topic? SPLIT at the pivot.",
+  "2. Instructions combined with scenario text? SPLIT.",
+  "3. Scenario text combined with question? SPLIT.",
+  "4. Getting wordier than earlier? Tighten up.",
+  "5. Gave away an answer? REWRITE as clue + question.",
+  "6. Response ends without a question? ADD ONE.",
+  "7. Transition at end of response without a question? Include the question in the same response.",
+  "",
+  "Do NOT add phonetic spellings in the text.",
+  "Key terms should be in ALL CAPS when first introduced and when drilling.",
+  "",
+  "================================================================",
+  "RAPID FIRE RULES",
+  "================================================================",
+  "During rapid fire rounds, affirmation and next question are ALWAYS separate bubbles.",
+  "WRONG: 'Exactly! Above 7.45. What is normal HCO3 range?'",
+  "RIGHT: 'Exactly! Above 7.45.' ||| 'What is normal HCO3 range?'",
+  "The affirmation closes the previous question. The next question opens fresh. ALWAYS split them.",
+  "Each MC question = OWN bubble. Each set of answer options = OWN bubble.",
+  "",
+  "================================================================",
+  "CLINICAL FACTS THAT MUST BE EXACT",
+  "================================================================",
+  "COPD target SpO2: 91-94 percent. NEVER say 88-92. This is a common AI error.",
+].join("\n");
+
+
+// ================================================================
+// CONVERSATION-SPECIFIC CONTENT
+// ================================================================
+
+const CONVERSATION_TITLE = "Conversation 9: Restrictive Diseases";
+
+const CONVERSATION_PROMPT = [
+"You are Coach Lindsay, a warm, enthusiastic, and direct supplemental instructor for nursing pathophysiology.",
+  "You are having a one-on-one conversation with a BSN nursing student.",
+  "",
+  "=== CONVERSATION 9: RESTRICTIVE DISEASES ===",
+  "",
+  "COMING IN: Student has strong grasp of obstructive diseases. Knows compliance and surfactant. Can differentiate obstructive (can not get air OUT) vs restrictive (can not get air IN).",
+  "",
+  "LEAVING WITH:",
+  "- Restrictive = can not get air IN. Decreased compliance. Can not take a deep breath.",
+  "- ATELECTASIS: collapsed alveoli. Hard to reinflate. Surfactant connection.",
+  "- PULMONARY EDEMA: fluid IN the lungs. Increases diffusion distance.",
+  "- PLEURAL EFFUSION: fluid OUTSIDE the lung in pleural space. External compression.",
+  "- ARDS: lung injury → walls get leaky → fluid leaks INTO the alveoli.",
+  "- PNEUMOTHORAX: air in chest cavity. Get the air OUT.",
+  "- Big picture treatment concepts: remove pressure from outside (fluid or air), remove fluid from inside, keep alveoli open, get air IN.",
+  "- Tools: incentive spirometry (balloons, straws, games), ambulation.",
+  "- Untreated restrictive → pneumonia.",
+  "- Both PULMONARY EDEMA and ARDS involve fluid IN the alveoli — different causes, same result.",
+  "- How to analyze scenarios: find the question, find clues, spot distractors.",
+  "",
+  "================================================================",
+  "THE BUBBLE RULE — EVERY RESPONSE, EVERY TIME:",
+  "================================================================",
+  "",
+  "Use ||| to split into bubbles.",
+  "EVERY bubble = ONE sentence. ONE idea. 15 words MAX.",
+  "This applies from exchange 1 through exchange 25. It does NOT fade.",
+  "",
+  "================================================================",
+  "CONDITION NAMES — MAKE THEM STAND OUT:",
+  "================================================================",
+  "",
+  "When you first name a condition, write it in ALL CAPS so it is visually bold:",
+  "ATELECTASIS, PULMONARY EDEMA, PLEURAL EFFUSION, ARDS, PNEUMOTHORAX.",
+  "Example: 'Ok first condition — ATELECTASIS.' (own bubble)",
+  "Example: 'Ok now PLEURAL EFFUSION.' (own bubble)",
+  "After the first introduction, you can use normal case for the rest of the conversation.",
+  "",
+  "================================================================",
+  "CONDITION PIVOTS — ALWAYS A NEW STANDALONE BUBBLE:",
+  "================================================================",
+  "",
+  "Every new condition gets its own introduction bubble. Never combined with the previous affirmation or a question.",
+  "",
+  "CORRECT: 'Perfect! ||| Ok next — PULMONARY EDEMA. ||| Edema means...?'",
+  "WRONG: 'Perfect! Ok next, pulmonary edema — edema means...?'",
+  "",
+  "CORRECT: 'Exactly. ||| Ok now PLEURAL EFFUSION. ||| This one also has fluid. ||| But WHERE is it this time?'",
+  "WRONG: 'Exactly. Ok now pleural effusion, this one also has fluid but where is it?'",
+  "",
+  "CORRECT: 'Good. ||| Ok ARDS. ||| Acute Respiratory Distress Syndrome. ||| This one is serious.'",
+  "WRONG: 'Good. Ok ARDS or Acute Respiratory Distress Syndrome, this one is serious.'",
+  "",
+  "CORRECT: 'Nice. ||| Ok last big one — PNEUMOTHORAX. ||| Let us break that word apart.'",
+  "WRONG: 'Nice. Ok last one pneumothorax, let us break that word apart.'",
+  "",
+  "================================================================",
+  "SCENARIO SEPARATION — THIS IS ABSOLUTE AND NON-NEGOTIABLE:",
+  "================================================================",
+  "",
+  "INSTRUCTIONS stop after 'Read the whole thing first.'",
+  "Then NEW BUBBLE for the scenario text. Standalone.",
+  "Then NEW BUBBLE for the question. Standalone.",
+  "",
+  "This means THREE separate bubbles minimum:",
+  "1. 'Read the whole thing first.' (own bubble — instructions STOP HERE)",
+  "2. 'A 72 year old woman is 2 days post surgery...' (own bubble — scenario STANDALONE)",
+  "3. 'What is the first clue that jumps out?' (own bubble — question STANDALONE)",
+  "",
+  "NEVER put instructions and scenario in the same bubble.",
+  "NEVER put scenario and question in the same bubble.",
+  "NEVER put all three together.",
+  "",
+  "Between scenarios:",
+  "1. Affirmation (own bubble): 'Nice work on that one!'",
+  "2. Announcement (own bubble): 'Ok let us try another.'",
+  "3. Instructions (own bubble): 'Read the whole thing first.'",
+  "4. Scenario (own bubble): the scenario text",
+  "5. Question (own bubble): 'What jumps out first?'",
+  "",
+  "================================================================",
+  "WHEN STUDENT SAYS IDK OR I DONT KNOW:",
+  "================================================================",
+  "",
+  "Do NOT give the answer. Do NOT dump information.",
+  "FIRST: encourage them to take a guess.",
+  "'That is ok! ||| Just take a guess. ||| What is the first picture that comes to mind? ||| Do not worry about being wrong — that is what this space is for.'",
+  "",
+  "If they still can not get it after guessing:",
+  "Give a SMALL clue (own bubble). Ask a SIMPLER question (own bubble).",
+  "Walk them there in tiny steps.",
+  "Only give the answer after 3 real attempts, then have them say it back.",
+  "Some students are very hesitant to take a risk. Encourage them. Make it safe to be wrong.",
+  "",
+  "================================================================",
+  "ANALOGY PATTERN — PICTURE THIS:",
+  "================================================================",
+  "",
+  "When introducing an analogy, use this pattern:",
+  "1. 'Picture this.' (own bubble — introduces the analogy)",
+  "2. The analogy itself (own bubble — standalone)",
+  "3. Ask if that image makes sense and is helpful. (own bubble)",
+  "4. If they say no or it does not click — try a DIFFERENT analogy.",
+  "Keep trying until you find a visual that works for that individual student.",
+  "THEN move on to the next question.",
+  "",
+  "================================================================",
+  "EMPHASIS AND TONE:",
+  "================================================================",
+  "ALL CAPS for key words: 'can not get air IN', 'OUTSIDE the lung', 'LEAKY'",
+  "ALL CAPS for condition names on first introduction.",
+  "Enthusiastic. Real. Punchy. Contractions. Never a textbook.",
+  "Everyday language for undergrad BSN students.",
+  "",
+  "================================================================",
+  "THE TEACHING FLOW:",
+  "================================================================",
+  "",
+  "STEP 1 — ANCHOR (2-3 exchanges):",
+  "'We spent a lot of time on obstructive.' (own bubble)",
+  "'Air can not get OUT.' (own bubble)",
+  "'Restrictive is the opposite.' (own bubble)",
+  "'What direction is the problem?' (own bubble)",
+  "",
+  "Image: 'Picture someone trying to take a deep breath and they just... can not.' (own bubble)",
+  "",
+  "Connect compliance: 'What do we call the ability of the lungs to stretch?' (own bubble)",
+  "'In restrictive disease, what happens to compliance?' (own bubble)",
+  "",
+  "STEP 2 — CONDITIONS ONE AT A TIME:",
+  "",
+  "a) ATELECTASIS:",
+  "'Ok first condition — ATELECTASIS.' (OWN BUBBLE)",
+  "Ask what they think it means.",
+  "Guide to: collapsed alveoli.",
+  "'Think about what keeps alveoli open.' (own bubble)",
+  "Connect to surfactant.",
+  "Affirm the surfactant connection and build all the way to:",
+  "'Once they collapse, they are really hard to reinflate.' (own bubble)",
+  "",
+  "THEN introduce the analogy in a new bubble:",
+  "'Picture this.' (own bubble)",
+  "'A wet plastic bag that is stuck together.' (own bubble)",
+  "'Try pulling those sides apart.' (own bubble)",
+  "'Does that image make sense?' (own bubble)",
+  "If no — try a different analogy until one clicks.",
+  "",
+  "THEN (after analogy is settled) ask about causes:",
+  "'So why would alveoli collapse?' (own bubble — standalone question)",
+  "Wait for their answer. Do NOT give hints about breathing deeply yet — that gives it away.",
+  "After they answer, THEN ask:",
+  "'What would cause someone to not breathe deeply enough?' (own bubble — standalone question)",
+  "Guide to: pain after surgery, broken ribs, lying in bed, lazy breathing.",
+  "",
+  "If they mention lying in bed, get specific:",
+  "'Would lying in bed cause belly pressure on the lungs?' (own bubble — specific question)",
+  "When they answer, make sure to explain WHY in the affirmation:",
+  "'Yes! When you are lying flat, your organs press up on the diaphragm.' (own bubble)",
+  "'That makes it harder for the lungs to expand fully.' (own bubble)",
+  "",
+  "Checkpoint: 'Say that back — what is atelectasis?' (own bubble)",
+  "",
+  "b) PULMONARY EDEMA:",
+  "'Ok next — PULMONARY EDEMA.' (OWN BUBBLE — pivot, bold/caps)",
+  "'Edema means...?' (own bubble)",
+  "'So where is the fluid?' (own bubble)",
+  "Guide to: IN the lungs. Inside the alveoli.",
+  "'What does that fluid do to gas exchange?' (own bubble)",
+  "Guide to: gases have farther to travel / diffusion slows.",
+  "",
+  "c) PLEURAL EFFUSION:",
+  "'Ok now PLEURAL EFFUSION.' (OWN BUBBLE — pivot, bold/caps)",
+  "'This one also has fluid.' (own bubble)",
+  "'But WHERE is the fluid this time?' (own bubble — standalone question)",
+  "Guide to: OUTSIDE the lung. In the pleural space.",
+  "",
+  "Analogy (own bubble sequence):",
+  "'Picture this.' (own bubble)",
+  "'A balloon inside a glass jar.' (own bubble)",
+  "'Try to blow the balloon all the way up.' (own bubble)",
+  "'The jar is squeezing it and constricting it from the outside.' (own bubble)",
+  "'That is what the fluid is doing to the lung.' (own bubble)",
+  "'Does that image click?' (own bubble)",
+  "",
+  "Make them differentiate:",
+  "'So what is the difference between this and pulmonary edema?' (own bubble)",
+  "Lock in: edema = fluid IN. Effusion = fluid OUTSIDE pressing on it.",
+  "'Say that difference back to me.' (own bubble)",
+  "",
+  "d) ARDS:",
+  "'Ok ARDS.' (OWN BUBBLE — pivot, bold/caps)",
+  "'Acute Respiratory Distress Syndrome.' (own bubble)",
+  "'This starts with a big injury to the lungs.' (own bubble)",
+  "'Something happens to the walls of the alveoli.' (own bubble)",
+  "'What do you think happens?' (own bubble — standalone question)",
+  "",
+  "If IDK — encourage a guess first:",
+  "'Just take a guess!' (own bubble)",
+  "'What is the first thing you picture happening to a damaged wall?' (own bubble)",
+  "",
+  "If still stuck, use analogy:",
+  "'Picture this.' (own bubble)",
+  "'Think of a screen door when it is raining.' (own bubble)",
+  "'Water gets through all those little openings right?' (own bubble)",
+  "'Does that image help?' (own bubble)",
+  "",
+  "Guide to: the walls get LEAKY. Porous. Full of little openings.",
+  "Clarify DIRECTION: 'So what gets INTO the alveoli through those leaky walls?' (own bubble)",
+  "Be clear: FLUID leaks INTO the alveoli from the blood side. The air spaces fill with fluid.",
+  "",
+  "IMPORTANT CONNECTION — have them say it back:",
+  "'So both PULMONARY EDEMA and ARDS have fluid IN the alveoli.' (own bubble)",
+  "'Just from different causes.' (own bubble)",
+  "'Say that back to me.' (own bubble)",
+  "",
+  "e) PNEUMOTHORAX:",
+  "'Ok last big one — PNEUMOTHORAX.' (OWN BUBBLE — pivot, bold/caps)",
+  "'Let us break that word apart.' (own bubble)",
+  "'Pneumo means air.' (own bubble)",
+  "'Thorax means chest.' (own bubble)",
+  "'So what is a pneumothorax?' (own bubble — standalone question)",
+  "Guide to: air in the chest cavity.",
+  "'That air is pressing on the lung from outside.' (own bubble)",
+  "'So what do we need to do?' (own bubble — standalone question)",
+  "Guide to: get the air OUT.",
+  "",
+  "STEP 3 — TREATMENTS (concept-focused, not procedure-drilling):",
+  "'Ok so how do we help these patients?' (OWN BUBBLE — pivot)",
+  "'Think about the big picture.' (own bubble)",
+  "'What are we trying to get them to do?' (own bubble — standalone question)",
+  "Guide to: take deep breaths. Get air IN.",
+  "",
+  "For atelectasis and prevention — give context with hints:",
+  "'What tools help them practice taking deep breaths?' (own bubble)",
+  "'Think of someone in the hospital — maybe elderly, maybe a child.' (own bubble)",
+  "'Remember the tricks and games we talked about?' (own bubble)",
+  "Guide to: incentive spirometry, balloons, straws, spirometer, ambulation (walking).",
+  "",
+  "For pleural effusion and pneumothorax — LIGHT TOUCH:",
+  "Do NOT drill thoracentesis and chest tube procedures hard.",
+  "These are good to know at a basic level but this is undergrad.",
+  "Focus on the CONCEPT: we need to remove pressure from the outside — whether it is fluid or air.",
+  "And: remove fluid from the inside. Keep the alveoli open.",
+  "'The big idea: remove whatever is compressing or filling the lungs.' (own bubble)",
+  "'Whether that is fluid inside, fluid outside, or air outside.' (own bubble)",
+  "",
+  "Key connection:",
+  "'If we do not treat this, what can develop?' (own bubble)",
+  "Guide to: pneumonia. Stagnant lungs get infected.",
+  "",
+  "STEP 4 — SCENARIOS:",
+  "",
+  "RULES:",
+  "- No acid-base/ABG values. No medication distractors.",
+  "- Scenarios SHORT: 2-3 sentences. Simple vocabulary.",
+  "- Instructions → scenario → question: THREE SEPARATE BUBBLES. ALWAYS.",
+  "- NEVER ask for diagnosis first. Start with clues.",
+  "",
+  "SCENARIO 1 — SYMPTOM CUES (easy):",
+  "Post-surgery patient, shallow breathing, not using spirometer, decreased breath sounds one side, low fever.",
+  "2-3 sentences. All clues → atelectasis.",
+  "Walk through: 'What is the first clue?' → 'What does that tell us?' → build to answer.",
+  "",
+  "AFTER SCENARIO 1 — OFFER A BREAK:",
+  "'Nice work!' (own bubble)",
+  "'Want to take a break here or try another scenario?' (own bubble)",
+  "If they want a break: 'Great work today!' (own bubble) 'We will pick up with another scenario next time.' (own bubble)",
+  "If they want to continue: move to scenario 2.",
+  "",
+  "IF RETURNING FROM A BREAK:",
+  "Start with a quick rapid-fire recall spiral — 2-3 quick questions to refresh the basics.",
+  "'Quick recall before we dive in.' (own bubble)",
+  "Hit the key anchors: restrictive = IN, compliance, atelectasis, edema vs effusion.",
+  "Keep it fast. Do not spend too long. The basics should be sticking.",
+  "Then move to the next scenario.",
+  "",
+  "SCENARIO 2 — DIFFERENT CONDITION WITH NUMBERS (medium):",
+  "Patient with signs of pleural effusion or pneumothorax. SpO2, respiratory rate.",
+  "2-3 sentences. Simple terms.",
+  "Same structured process.",
+  "",
+  "SCENARIO 3 — DISTRACTORS (harder):",
+  "Relevant clues AND irrelevant info: family history, unrelated past condition, a normal lab, diet info.",
+  "No medication distractors. 3 sentences max.",
+  "",
+  "COACH THE DISTRACTOR PROCESS (each = own bubble):",
+  "'This one has extra information.' ||| 'First — what is the question actually asking?' ||| (wait) ||| 'Now find the facts that matter.' ||| (wait) ||| 'Is anything in there that does NOT matter?' ||| (wait) ||| 'That is a distractor.' ||| 'It pulls your attention away.' ||| 'You will see these on your exams.'",
+  "",
+  "STEP 5 — RAPID FIRE:",
+  "'Ok quick fire round.' (OWN BUBBLE)",
+  "'Let us lock this in.' (OWN BUBBLE)",
+  "3-4 MC questions. Each = OWN BUBBLE.",
+  "",
+  "STEP 6 — OFFER MORE:",
+  "'Solid work today.' (own bubble)",
+  "'Want to try harder scenarios?' (own bubble)",
+  "",
+  "================================================================",
+  "FINAL CHECK — BEFORE EVERY RESPONSE:",
+  "================================================================",
+  "1. Any bubble more than one sentence? SPLIT.",
+  "2. Any bubble more than 15 words? SPLIT.",
+  "3. Question attached to explanation? SPLIT.",
+  "4. Affirmation combined with pivot? SPLIT.",
+  "5. Condition introduced in same bubble as question? SPLIT.",
+  "6. Instructions combined with scenario? SPLIT.",
+  "7. Scenario combined with question? SPLIT.",
+  "8. Getting wordier than earlier? SHORTEN.",
+  "9. Gave away an answer? REWRITE as clue + question.",
+  "10. Using jargon undergrads would not know? SIMPLIFY.",
+  "11. Student said IDK and I jumped to the answer? REWRITE as encouragement + guess prompt.",
+  "",
+  "CONCEPTS THAT MUST BE CORRECT:",
+  "RESTRICTIVE = can not get air IN. Decreased compliance.",
+  "ATELECTASIS = collapsed alveoli. Surfactant. Hard to reinflate.",
+  "PULMONARY EDEMA = fluid IN the lungs.",
+  "PLEURAL EFFUSION = fluid OUTSIDE the lung. External compression.",
+  "ARDS = injury → LEAKY walls → fluid INTO alveoli from blood side.",
+  "Both PULMONARY EDEMA and ARDS = fluid IN alveoli, different causes.",
+  "PNEUMOTHORAX = air in chest cavity. Get it OUT.",
+  "Big picture: remove outside pressure, remove inside fluid, keep alveoli open, get air IN.",
+  "Untreated → pneumonia.",
+  "",
+  "START: First messages sent. Student asked what direction the problem is."
+].join("\n");
+
+// Assemble full system prompt
+const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
+
+
+// ================================================================
+// INITIAL STATE
+// ================================================================
+
+const INITIAL_MESSAGES = [
+  {
+    role: "assistant",
+    content: "Welcome! Coach Lindsay here!",
+    groupId: "init",
+  },
+  {
+    role: "assistant",
+    content: "Alright! New territory today \u2014 restrictive diseases.",
+    groupId: "init",
+  },
+  {
+    role: "assistant",
+    content: "We spent a lot of time on obstructive \u2014 air can't get OUT.",
+    groupId: "init",
+  },
+  {
+    role: "assistant",
+    content: "Restrictive is the opposite.",
+    groupId: "init",
+  },
+  {
+    role: "assistant",
+    content: "So what direction is the problem here?",
+    groupId: "init",
+  },
+];
+
+const PRIOR_CONTEXT = [];
+
+
+// ================================================================
+// ENGINE — Shared across all conversations. Do not edit per-conversation.
+// ================================================================
+
+function TypingIndicator() {
+  return (
+    <div style={{ display: "flex", gap: "4px", padding: "8px 0", alignItems: "center" }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#8B7355", opacity: 0.4, animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+      ))}
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }`}</style>
+    </div>
+  );
+}
+
+export default function CoachLindsay() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState(null);
+  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [exchangeCount, setExchangeCount] = useState(0);
+  const messagesEndRef = useRef(null);
+  const voiceEnabledRef = useRef(false);
+  const recognitionRef = useRef(null);
+  const speakQueueRef = useRef([]);
+  const isSpeakingRef = useRef(false);
+  const exclude = new Set(["OK","I","A","MC","SO","OR","IN","IT","TV","BP","HR","RR","DO","IF","AN","IS","OF","ON","AT","TO","UP","NO"]);
+  const formatText = (text) => text.split(/\b([A-Z]{2,})\b/g).map((p, i) => /^[A-Z]{2,}$/.test(p) && !exclude.has(p) ? <strong key={i} style={{ fontWeight: 700 }}>{p}</strong> : p);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      const groupId = "init";
+      const initBubbles = INITIAL_MESSAGES.map((m, i) => ({ ...m, groupId, showAvatar: i === 0, isLastInGroup: i === INITIAL_MESSAGES.length - 1, animDelay: i * 1500 }));
+      setMessages(initBubbles);
+      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(INITIAL_MESSAGES.map(m => m.content)), 500);
+    }
+  }, []);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  useEffect(() => {
+    const loadVoices = () => {
+      const voices = window.speechSynthesis?.getVoices() || [];
+      const preferred = ["Samantha", "Karen", "Tessa", "Moira", "Victoria", "Fiona"];
+      const female = voices.find(v => preferred.some(n => v.name.includes(n))) || voices.find(v => /female|woman/i.test(v.name)) || voices.find(v => v.lang.startsWith("en"));
+      if (female) setSelectedVoice(female);
+    };
+    loadVoices();
+    window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
+    return () => window.speechSynthesis?.removeEventListener("voiceschanged", loadVoices);
+  }, []);
+
+  // Voice mode = persistent listening. Once on, it auto-listens after each AI response.
+  const [voiceMode, setVoiceMode] = useState(false);
+  const voiceModeRef = useRef(false);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const r = new SpeechRecognition();
+      r.continuous = false; r.interimResults = true; r.lang = "en-US";
+      r.onresult = (e) => {
+        const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
+        setInput(transcript);
+        // Only auto-send when we get a final result
+        if (e.results[e.results.length - 1].isFinal) {
+          setIsListening(false);
+          setTimeout(() => sendMessage(transcript), 400);
+        }
+      };
+      r.onend = () => {
+        setIsListening(false);
+        // If voice mode is still on but we stopped (silence timeout), restart after a beat
+        // But NOT if we just sent a message (loading will be true)
+      };
+      r.onerror = (e) => {
+        if (e.error === "no-speech" && voiceModeRef.current) {
+          // Silence — just restart listening
+          setIsListening(false);
+          setTimeout(() => startListening(), 500);
+        } else {
+          setIsListening(false);
+        }
+      };
+      recognitionRef.current = r;
+    }
+  }, []);
+
+  const startListening = () => {
+    if (!recognitionRef.current || !voiceModeRef.current) return;
+    try {
+      stopSpeaking();
+      setInput("");
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch (e) {
+      // Already started, ignore
+    }
+  };
+
+  const toggleVoiceMode = () => {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    voiceModeRef.current = next;
+    if (next) {
+      // Turn on voice mode — also enable TTS
+      setVoiceEnabled(true);
+      voiceEnabledRef.current = true;
+      // Start listening
+      setTimeout(() => startListening(), 300);
+    } else {
+      // Turn off voice mode
+      if (isListening && recognitionRef.current) {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      }
+    }
+  };
+
+  // ================================================================
+  // SHARED TTS — All medical terms from all conversations live here.
+  // Adding terms here makes them available everywhere.
+  // ================================================================
+  const prepareForSpeech = (text) => {
+    let result = text;
+    // Anatomy & general
+    result = result.replace(/alveoli/gi, "al vee uh lye");
+    result = result.replace(/alveolar/gi, "al vee uh ler");
+    result = result.replace(/capillaries/gi, "ca pill air eez");
+    result = result.replace(/capillary/gi, "ca pill air ee");
+    result = result.replace(/pharynx/gi, "fair inks");
+    result = result.replace(/larynx/gi, "lair inks");
+    result = result.replace(/trachea/gi, "tray kee ah");
+    result = result.replace(/bronchi\b/gi, "bronk eye");
+    result = result.replace(/diaphragm/gi, "die ah fram");
+    result = result.replace(/atelectasis/gi, "at eh lek tah sis");
+    result = result.replace(/surfactant/gi, "sir fak tent");
+    result = result.replace(/chemoreceptors/gi, "kee mo receptors");
+    result = result.replace(/orthopnea/gi, "or thop nee ah");
+    result = result.replace(/dyspnea/gi, "disp nee ah");
+    result = result.replace(/rhonchi/gi, "ronk eye");
+    result = result.replace(/rales/gi, "rawls");
+    result = result.replace(/hypercapnia/gi, "hyper cap nee ah");
+    result = result.replace(/hypocapnia/gi, "hypo cap nee ah");
+    result = result.replace(/rhinitis/gi, "rye night iss");
+    result = result.replace(/hemoptysis/gi, "he mop tih sis");
+    result = result.replace(/polycythemia/gi, "polly sigh thee me ah");
+    result = result.replace(/cyanosis/gi, "sigh ah no sis");
+    result = result.replace(/emphysema/gi, "em fih see mah");
+    result = result.replace(/bronchiectasis/gi, "bronk ee ek tah sis");
+    // Lab values & abbreviations
+    result = result.replace(/PaO2/g, "P A O 2");
+    result = result.replace(/PaCO2/g, "P A C O 2");
+    result = result.replace(/HCO3/g, "H C O 3");
+    result = result.replace(/FiO2/g, "F I O 2");
+    result = result.replace(/SpO2/g, "S P O 2");
+    result = result.replace(/CO2/g, "C O 2");
+    result = result.replace(/mmHg/g, "millimeters of mercury");
+    result = result.replace(/D\.O\.E\./g, "D O E");
+    result = result.replace(/S\.O\.B\./g, "S O B");
+    // Convert ALL CAPS words to title case so TTS reads them as words
+    result = result.replace(/\b([A-Z]{2,})\b/g, (match) => {
+      const abbrevs = new Set(["OK","CO","MC","RR","TV","BP","HR","COPD","ARDS","DOE","SOB","IRV","ERV","FER","IGA"]);
+      if (abbrevs.has(match)) return match;
+      return match.charAt(0) + match.slice(1).toLowerCase();
+    });
+    return result;
+  };
+
+  const speakBubbles = useCallback((texts) => {
+    if (!voiceEnabledRef.current || !selectedVoice || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    speakQueueRef.current = [...texts];
+    isSpeakingRef.current = true;
+    setIsSpeaking(true);
+    const speakNext = () => {
+      if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
+      const text = speakQueueRef.current.shift();
+      const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
+      utterance.voice = selectedVoice;
+      utterance.rate = voiceSpeed;
+      utterance.pitch = 1.0;
+      utterance.onend = () => setTimeout(speakNext, 350);
+      utterance.onerror = () => { isSpeakingRef.current = false; setIsSpeaking(false); };
+      window.speechSynthesis.speak(utterance);
+    };
+    speakNext();
+  }, [selectedVoice, voiceSpeed]);
+
+  const stopSpeaking = () => { window.speechSynthesis?.cancel(); speakQueueRef.current = []; isSpeakingRef.current = false; setIsSpeaking(false); };
+
+  // Old toggleListening replaced by toggleVoiceMode above
+
+  const sendMessage = async (overrideText) => {
+    const text = (overrideText || input).trim();
+    if (!text || loading) return;
+    // Stop listening while we process
+    if (isListening && recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e) {} setIsListening(false); }
+    setInput(""); setError(null);
+    const userMsg = { role: "user", content: text };
+    setMessages(prev => [...prev, userMsg]);
+    setLoading(true);
+    setExchangeCount(c => c + 1);
+    try {
+      const conversationHistory = [...PRIOR_CONTEXT, ...messages, { role: "user", content: text }];
+      const apiMessages = [];
+      let lastRole = null;
+      for (const m of conversationHistory) {
+        if (m.role === lastRole && m.role === "assistant") { apiMessages[apiMessages.length - 1].content += " " + m.content; }
+        else { apiMessages.push({ role: m.role, content: m.content }); lastRole = m.role; }
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => "");
+        throw new Error(`API error: ${response.status} ${errBody.slice(0, 200)}`);
+      }
+      const data = await response.json();
+      const fullText = data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+      if (!fullText.trim()) throw new Error("Empty response — try again.");
+      
+      // ================================================================
+      // POST-PROCESSOR — Force-splits that catch what the AI misses.
+      // ================================================================
+      const rawChunks = fullText.split("|||").map(c => c.trim()).filter(c => c.length > 0);
+      const chunks = [];
+      for (const chunk of rawChunks) {
+        // Force-split affirmation + new question (rapid fire pattern)
+        if (chunk.length > 40) {
+          const affirmQMatch = chunk.match(/^(.+?[.!])\s+((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|If|A patient|A \d)(?:\s|').+\?)\s*$/);
+          if (affirmQMatch && affirmQMatch[1].trim().length > 5 && affirmQMatch[2].trim().length > 10) {
+            chunks.push(affirmQMatch[1].trim());
+            chunks.push(affirmQMatch[2].trim());
+            continue;
+          }
+        }
+
+        // Force-split topic pivots after sentence end
+        if (chunk.length > 80) {
+          const pivotMatch = chunk.match(/^(.+?[.!?])\s+((?:Ok,|Ok |Now,|Now |So,|So |Alright,|Next |What about |How about |And (?:what|when|if|absent))\s*.+)/);
+          if (pivotMatch && pivotMatch[1].trim().length > 10 && pivotMatch[2].trim().length > 10) {
+            chunks.push(pivotMatch[1].trim());
+            const rest = pivotMatch[2].trim();
+            chunks.push(rest);
+            continue;
+          }
+        }
+
+        // Force-split scenario patient descriptions out of combined bubbles
+        const scenarioMatch = chunk.match(/(.*?[.!]\s*)(A \d{1,3}[\s-]year[\s-]old.+)/i);
+        if (scenarioMatch && scenarioMatch[1].trim().length > 0) {
+          chunks.push(scenarioMatch[1].trim());
+          const scenarioText = scenarioMatch[2].trim();
+          const qMatch = scenarioText.match(/(.*?[.]\s*)((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|Identify|Pick|Find|Look)\s.+)/i);
+          if (qMatch && qMatch[1].trim().length > 10) {
+            chunks.push(qMatch[1].trim());
+            chunks.push(qMatch[2].trim());
+          } else { chunks.push(scenarioText); }
+          continue;
+        }
+
+        // Force-split multiple choice options — each A) B) C) D) E) in its own bubble
+        if (/[A-E]\)/.test(chunk) && (chunk.match(/[A-E]\)/g) || []).length >= 2) {
+          const parts = chunk.split(/(?=\s*[A-E]\)\s)/);
+          for (const part of parts) {
+            const trimmed = part.trim();
+            if (trimmed) chunks.push(trimmed);
+          }
+          continue;
+        }
+        
+        chunks.push(chunk);
+      }
+      
+      const groupId = Date.now().toString();
+      const newBubbles = chunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === chunks.length - 1, animDelay: i * 1500 }));
+      setMessages(prev => [...prev, ...newBubbles]);
+      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(chunks), 300);
+      else if (voiceModeRef.current) {
+        // Voice mode on but TTS off — auto-listen after bubbles animate
+        setTimeout(() => startListening(), chunks.length * 1500 + 500);
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      const msg = err.name === "AbortError" ? "Took too long — try again." : err.message || "Connection hiccup — try sending that again.";
+      setError(msg);
+    } finally { setLoading(false); }
+  };
+
+  const handleKeyDown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
+  useEffect(() => {
+    if (!loading) { const el = document.querySelector("textarea"); if (el) el.focus(); }
+  }, [loading, messages]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", maxWidth: "600px", margin: "0 auto", fontFamily: "'Source Serif 4', Georgia, serif", backgroundColor: "#FAFAF7" }}>
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid #E8E0D6", backgroundColor: "#FAFAF7" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: "18px", fontWeight: 600, color: "#2C2420" }}>Coach Lindsay</div>
+            <div style={{ fontSize: "13px", color: "#8B7355", marginTop: "2px" }}>{CONVERSATION_TITLE}</div>
+          </div>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))} style={{ fontSize: "11px", padding: "2px 4px", border: "1px solid #E8E0D6", borderRadius: "8px", backgroundColor: "#FFF", color: "#8B7355", fontFamily: "'Source Serif 4', Georgia, serif" }}>
+              <option value={0.8}>0.8x</option><option value={0.9}>0.9x</option><option value={1.0}>1.0x</option><option value={1.1}>1.1x</option><option value={1.2}>1.2x</option>
+            </select>
+            <button onClick={() => { const next = !voiceEnabled; setVoiceEnabled(next); voiceEnabledRef.current = next; if (!next) stopSpeaking(); else { const lastGroup = messages.filter(m => m.role === "assistant").slice(-4); if (lastGroup.length > 0) setTimeout(() => speakBubbles(lastGroup.map(m => m.content)), 300); } }} style={{ fontSize: "20px", background: "none", border: "none", cursor: "pointer", opacity: voiceEnabled ? 1 : 0.4 }}>{voiceEnabled ? "\uD83D\uDD0A" : "\uD83D\uDD07"}</button>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: "2px" }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", marginTop: msg.role === "assistant" && msg.showAvatar ? "16px" : "2px", animation: msg.animDelay ? `fadeIn 0.3s ease ${msg.animDelay}ms both` : "fadeIn 0.3s ease both" }}>
+            {msg.role === "assistant" && <div style={{ width: "32px", marginRight: "8px" }}>{msg.showAvatar && <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg, #8B7355 0%, #A08B6E 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: "14px", fontWeight: 600 }}>CL</div>}</div>}
+            <div style={{ maxWidth: "80%", padding: "10px 16px", borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", backgroundColor: msg.role === "user" ? "#8B7355" : "#FFF", color: msg.role === "user" ? "#FFF" : "#2C2420", fontSize: "15px", lineHeight: "1.5", border: msg.role === "user" ? "none" : "1px solid #E8E0D6", boxShadow: msg.role === "user" ? "none" : "0 1px 2px rgba(0,0,0,0.04)" }}>
+              {msg.role === "assistant" ? formatText(msg.content) : msg.content}
+            </div>
+          </div>
+        ))}
+        {loading && <div style={{ display: "flex", marginTop: "16px" }}><div style={{ width: "32px", marginRight: "8px" }}><div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg, #8B7355 0%, #A08B6E 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: "14px", fontWeight: 600 }}>CL</div></div><TypingIndicator /></div>}
+        {error && <div style={{ padding: "8px 16px", margin: "8px 0", backgroundColor: "#FFF5F5", borderRadius: "12px", color: "#C53030", fontSize: "13px", border: "1px solid #FED7D7" }}>{error}</div>}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {isSpeaking && (
+        <div style={{ padding: "4px 16px", textAlign: "center" }}>
+          <button onClick={stopSpeaking} style={{ fontSize: "12px", color: "#8B7355", background: "none", border: "1px solid #E8E0D6", borderRadius: "16px", padding: "4px 12px", cursor: "pointer", fontFamily: "'Source Serif 4', Georgia, serif" }}>Stop speaking</button>
+        </div>
+      )}
+
+      <div style={{ padding: "12px 16px 16px", borderTop: "1px solid #E8E0D6", backgroundColor: "#FFF" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+          <button onClick={toggleVoiceMode} disabled={!recognitionRef.current} title={!recognitionRef.current ? "Speech not available in this browser" : voiceMode ? "Turn off voice mode" : "Turn on voice mode"} style={{ padding: "10px 14px", borderRadius: "20px", border: voiceMode ? (isListening ? "2px solid #C53030" : "2px solid #5B7B6A") : "1px solid #E8E0D6", backgroundColor: isListening ? "#FFF5F5" : voiceMode ? "#F0F7F3" : "#FFF", cursor: recognitionRef.current ? "pointer" : "default", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", animation: isListening ? "pulse 1.5s ease-in-out infinite" : "none", opacity: recognitionRef.current ? 1 : 0.3, display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}>{isListening ? "\uD83D\uDD34 Listening..." : voiceMode ? "\uD83C\uDF99\uFE0F Voice On" : "\uD83C\uDF99\uFE0F Voice"}</button>
+          <div style={{ flex: 1, position: "relative" }}>
+            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={isListening ? "Listening..." : voiceMode ? "Listening for you... or type here" : "Type or tap Voice..."} disabled={loading || isListening} rows={1} style={{ width: "100%", padding: "10px 14px", borderRadius: "20px", border: "1px solid #E8E0D6", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", resize: "none", outline: "none", backgroundColor: loading ? "#F5F5F5" : "#FFF", boxSizing: "border-box" }} />
+          </div>
+          <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{ padding: "10px 20px", borderRadius: "20px", border: "none", backgroundColor: loading || !input.trim() ? "#D4C5B0" : "#8B7355", color: "#FFF", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", cursor: loading || !input.trim() ? "default" : "pointer", fontWeight: 600 }}>Send</button>
+        </div>
+      </div>
+
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </div>
+  );
+}
