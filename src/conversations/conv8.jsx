@@ -577,9 +577,10 @@ export default function CoachLindsay() {
   useEffect(() => {
     const loadVoices = () => {
       const voices = window.speechSynthesis?.getVoices() || [];
-      const preferred = ["Samantha", "Karen", "Tessa", "Moira", "Victoria", "Fiona"];
-      const female = voices.find(v => preferred.some(n => v.name.includes(n))) || voices.find(v => /female|woman/i.test(v.name)) || voices.find(v => v.lang.startsWith("en"));
-      if (female) setSelectedVoice(female);
+      if (voices.length === 0) return;
+      const preferred = ["Samantha", "Karen", "Tessa", "Moira", "Victoria", "Fiona", "Zira", "Jenny", "Aria", "Sara", "Susan"];
+      const female = voices.find(v => preferred.some(n => v.name.includes(n))) || voices.find(v => /female|woman/i.test(v.name)) || voices.find(v => v.lang.startsWith("en")) || voices[0];
+      setSelectedVoice(female);
     };
     loadVoices();
     window.speechSynthesis?.addEventListener("voiceschanged", loadVoices);
@@ -704,7 +705,7 @@ export default function CoachLindsay() {
   };
 
   const speakBubbles = useCallback((texts) => {
-    if (!voiceEnabledRef.current || !selectedVoice || !window.speechSynthesis) return;
+    if (!voiceEnabledRef.current || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     speakQueueRef.current = [...texts];
     isSpeakingRef.current = true;
@@ -713,7 +714,7 @@ export default function CoachLindsay() {
       if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
       const text = speakQueueRef.current.shift();
       const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
-      utterance.voice = selectedVoice;
+      if (selectedVoice) utterance.voice = selectedVoice;
       utterance.rate = voiceSpeed;
       utterance.pitch = 1.0;
       utterance.onend = () => setTimeout(speakNext, 350);
