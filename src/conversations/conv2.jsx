@@ -76,6 +76,11 @@ const BASE_PROMPT = [
   "RIGHT ending: 'That is the move. Every time. Ready for the next one?' — keeps it going.",
   "CHECK: Read your last bubble. Does it end with '?' If not, FIX IT.",
   "",
+  "FAILURE 8 — MC question without options. THIS IS THE MOST COMMON FAILURE RIGHT NOW.",
+  "If your response contains the words 'which of the following' or 'select all that apply' or 'all of the following EXCEPT', you MUST include A) B) C) D) answer choices.",
+  "A multiple choice question with NO OPTIONS is not a question. It is broken.",
+  "BEFORE sending any response, search it for these trigger phrases. If you find one, CHECK that options are listed. If not, ADD THEM.",
+  "",
   "================================================================",
   "SCAFFOLDING",
   "================================================================",
@@ -113,7 +118,7 @@ const BASE_PROMPT = [
   "No acid-base calculations. No medications. SHORT: 2-3 sentences.",
   "EVERY piece is its OWN bubble:",
   "- Affirmation from previous answer = OWN bubble",
-  "- Scenario transition MUST be a question, not a statement: 'Ready to apply this to a scenario?' or 'Want to try a scenario?' = OWN bubble",
+  "- Scenario transition MUST be a question, not a statement: 'Ready to try a few scenarios?' or 'Want to put this to work with some scenarios?' = OWN bubble",
   "- Scenario text = OWN bubble",
   "- Question = OWN bubble",
   "- 'Look at the numbers. What do you see?' = OWN bubble (when numbers are given)",
@@ -143,7 +148,15 @@ const BASE_PROMPT = [
   "WRONG: 'Exactly! Above 7.45. What is normal HCO3 range?'",
   "RIGHT: 'Exactly! Above 7.45.' ||| 'What is normal HCO3 range?'",
   "The affirmation closes the previous question. The next question opens fresh. ALWAYS split them.",
-  "Each MC question = OWN bubble. Each set of answer options = OWN bubble.",
+  "NEVER ask a multiple choice, select-all-that-apply, or EXCEPT question without listing the answer options.",
+  "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?'",
+  "This is WRONG because there are no options listed. The student has nothing to choose from.",
+  "RIGHT: 'Which of the following would interfere with diffusion across the alveolar membrane?\\nA) Thickened membrane\\nB) Increased blood flow\\nC) Fluid in the alveoli\\nD) High hemoglobin'",
+  "If you write 'which of the following' or 'select all that apply' or 'all of the following EXCEPT', you MUST list A) B) C) D) options. No exceptions.",
+  "Each MC question = OWN bubble. Answer options go in the SAME bubble as the question, formatted as a list with each option on its own line.",
+  "Use a newline before each option. Format like this:",
+  "WRONG: 'Which of the following causes wheezing? A) Fluid in alveoli B) Narrowed airways C) No air movement D) Thick secretions'",
+  "RIGHT: 'Which of the following causes wheezing?\\nA) Fluid in alveoli\\nB) Narrowed airways\\nC) No air movement\\nD) Thick secretions'",
   "",
   "================================================================",
   "CLINICAL FACTS THAT MUST BE EXACT",
@@ -355,7 +368,21 @@ export default function CoachLindsay() {
   const speakQueueRef = useRef([]);
   const isSpeakingRef = useRef(false);
   const exclude = new Set(["OK","I","A","MC","SO","OR","IN","IT","TV","BP","HR","RR","DO","IF","AN","IS","OF","ON","AT","TO","UP","NO"]);
-  const formatText = (text) => text.split(/\b([A-Z]{2,})\b/g).map((p, i) => /^[A-Z]{2,}$/.test(p) && !exclude.has(p) ? <strong key={i} style={{ fontWeight: 700 }}>{p}</strong> : p);
+  const formatText = (text) => {
+    const lines = text.split("\n");
+    const result = [];
+    lines.forEach((line, li) => {
+      if (li > 0) result.push(<br key={"br" + li} />);
+      line.split(/\b([A-Z]{2,})\b/g).forEach((p, i) => {
+        if (/^[A-Z]{2,}$/.test(p) && !exclude.has(p)) {
+          result.push(<strong key={li + "-" + i} style={{ fontWeight: 700 }}>{p}</strong>);
+        } else {
+          result.push(p);
+        }
+      });
+    });
+    return result;
+  };
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -543,7 +570,7 @@ export default function CoachLindsay() {
       const timeout = setTimeout(() => controller.abort(), 30000);
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
         signal: controller.signal,
       });
@@ -564,7 +591,7 @@ export default function CoachLindsay() {
       for (const chunk of rawChunks) {
         // Force-split affirmation + new question (rapid fire pattern)
         if (chunk.length > 40) {
-          const affirmQMatch = chunk.match(/^(.+?[.!])\s+((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|If|A patient|A \d)(?:\s|').+\?)\s*$/);
+          const affirmQMatch = chunk.match(/^(.+?[.!])\s+((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|If|In|A patient|A \d|True|False|The |When|Select).+\?.*)/);
           if (affirmQMatch && affirmQMatch[1].trim().length > 5 && affirmQMatch[2].trim().length > 10) {
             chunks.push(affirmQMatch[1].trim());
             chunks.push(affirmQMatch[2].trim());
@@ -596,26 +623,37 @@ export default function CoachLindsay() {
           continue;
         }
 
-        // Force-split multiple choice options — each A) B) C) D) E) in its own bubble
-        if (/[A-E]\)/.test(chunk) && (chunk.match(/[A-E]\)/g) || []).length >= 2) {
-          const parts = chunk.split(/(?=\s*[A-E]\)\s)/);
-          for (const part of parts) {
-            const trimmed = part.trim();
-            if (trimmed) chunks.push(trimmed);
-          }
+        // MC options stay in the same bubble — formatted with newlines
+        // Safety net: if MC trigger phrase found without options, convert to free response
+        const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+        if (mcTriggers.test(chunk) && !/[A-E]\)/.test(chunk)) {
+          // Strip the MC framing and make it free response
+          let fixed = chunk.replace(/which of the following/gi, "what").replace(/select all that apply[.:]?\s*/gi, "").replace(/all of the following .* except/gi, "what does NOT");
+          chunks.push(fixed);
           continue;
         }
         
         chunks.push(chunk);
       }
       
+      // SECOND PASS: Fix any MC questions that lost their options during splitting
+      const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+      const finalChunks = chunks.map(c => {
+        if (mcTriggers.test(c) && !/[A-E]\)/.test(c)) {
+          return c.replace(/which of the following/gi, "what").replace(/[Ss]elect all that apply[.:]?\s*/g, "").replace(/all of the following .* except/gi, "what does NOT").trim();
+        }
+        // Also remove standalone "Select all that apply." bubbles with no question
+        if (/^select all that apply[.!]?$/i.test(c.trim())) return null;
+        return c;
+      }).filter(c => c && c.trim().length > 0);
+      
       const groupId = Date.now().toString();
-      const newBubbles = chunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === chunks.length - 1, animDelay: i * 1500 }));
+      const newBubbles = finalChunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === finalChunks.length - 1, animDelay: i * 1500 }));
       setMessages(prev => [...prev, ...newBubbles]);
-      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(chunks), 300);
+      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(finalChunks), 300);
       else if (voiceModeRef.current) {
         // Voice mode on but TTS off — auto-listen after bubbles animate
-        setTimeout(() => startListening(), chunks.length * 1500 + 500);
+        setTimeout(() => startListening(), finalChunks.length * 1500 + 500);
       }
     } catch (err) {
       console.error("Error:", err);

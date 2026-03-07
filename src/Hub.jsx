@@ -22,7 +22,7 @@ export default function Hub() {
         <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'linear-gradient(135deg, #8B7355 0%, #A08B6E 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF', fontSize: '24px', fontWeight: 700, margin: '0 auto 16px' }}>CL</div>
         <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#2C2420', marginBottom: '8px' }}>Coach Lindsay</h1>
         <p style={{ fontSize: '15px', color: '#8B7355', lineHeight: 1.6 }}>Pulmonary Pathophysiology — Interactive Study Sessions</p>
-        <p style={{ fontSize: '13px', color: '#A09080', marginTop: '8px', lineHeight: 1.5 }}>Each conversation builds on the last. Start with Conversation 1 and work your way through. You can use voice or text — tap the Voice button to talk your answers.</p>
+        <p style={{ fontSize: '13px', color: '#A09080', marginTop: '8px', lineHeight: 1.5 }}>The conversations build on each other, so starting with Conversation 1 gives you the strongest foundation. But you can also jump into any topic you need more practice on — click whatever you need, whenever you need it. You can use voice or text — tap the Voice button to talk your answers.</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
