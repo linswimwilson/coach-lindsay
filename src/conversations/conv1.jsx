@@ -585,7 +585,7 @@ export default function CoachLindsay() {
     return result;
   };
 
-  const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
+  const ELEVEN_VOICE_ID = "gJx1vCzNCD1EQHT212Ls";
   const currentAudioRef = useRef(null);
 
   const speakElevenLabs = async (text) => {
