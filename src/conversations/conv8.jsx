@@ -909,11 +909,27 @@ export default function CoachLindsay() {
       const rawChunks = fullText.split("|||").map(c => c.trim()).filter(c => c.length > 0);
       // RECURSIVE SPLITTER — keeps splitting until no more splits are needed
       const splitChunk = (chunk) => {
-        // Force-split affirmation + new question
-        if (chunk.length > 40) {
-          const affirmQMatch = chunk.match(/^(.+?[.!])\s+((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|If|In|A patient|A \d|True|False|The |When|Select).+\?.*)/);
-          if (affirmQMatch && affirmQMatch[1].trim().length > 5 && affirmQMatch[2].trim().length > 10) {
-            return [...splitChunk(affirmQMatch[1].trim()), ...splitChunk(affirmQMatch[2].trim())];
+        // UNIVERSAL SPLIT: Any statement/exclamation followed by a question
+        // This catches ALL rapid fire patterns: "Exactly! Normal PaCO2?" / "Right! Target SpO2?"
+        if (chunk.length > 15) {
+          const stmtQMatch = chunk.match(/^(.+?[.!])\s+(.+\?)\s*$/);
+          if (stmtQMatch && stmtQMatch[1].trim().length > 3 && stmtQMatch[2].trim().length > 5) {
+            return [...splitChunk(stmtQMatch[1].trim()), ...splitChunk(stmtQMatch[2].trim())];
+          }
+        }
+
+        // Statement followed by statement+question (multi-sentence then question)
+        // "Exactly! 95 to 100. Normal PaO2?" → split after each sentence
+        if (chunk.length > 20 && /\?/.test(chunk)) {
+          const parts = chunk.match(/[^.!?]+[.!?]+/g);
+          if (parts && parts.length >= 2) {
+            const lastPart = parts[parts.length - 1].trim();
+            if (lastPart.endsWith("?")) {
+              const beforeQ = parts.slice(0, -1).join("").trim();
+              if (beforeQ.length > 3 && lastPart.length > 5) {
+                return [...splitChunk(beforeQ), ...splitChunk(lastPart)];
+              }
+            }
           }
         }
 
