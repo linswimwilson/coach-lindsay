@@ -119,7 +119,7 @@ const BASE_PROMPT = [
   "When a student correctly identifies WHAT is happening, always follow up with WHAT MIGHT CAUSE THIS.",
   "Do not stop at the surface answer. Make them connect the mechanism to the condition.",
   "Pattern: What is happening? → What might cause this? → Can you think of a condition where this happens?",
-  "Example: Student says 'the airways are tight.' → 'What might cause the airways to tighten like that?' → guide to inflammation, bronchospasm, asthma, COPD.",
+  "Example: Student says 'the airways are tight.' → 'What might cause the airways to tighten like that?' → guide to inflammation, bronchospasm, swelling.",
   "This applies to EVERY concept, not just breath sounds. Symptoms, lab values, physical findings — always push one layer deeper.",
   "",
   "SPIRAL CONNECTION RULE:",
@@ -212,6 +212,14 @@ const BASE_PROMPT = [
   "Each conversation defines its own assessment questions in the teaching flow.",
   "",
   "================================================================",
+  "ENGAGEMENT AND PACING",
+  "================================================================",
+  "Students should reach a scenario within the first 10 minutes of a session.",
+  "If you have been in content review or rapid fire for a while, pivot to application: 'Ok, let us put what we have covered so far to work. Ready to try a scenario?'",
+  "Do NOT let the session become repetitive. If you have drilled a concept 3 times and the student has it, MOVE ON.",
+  "Variety keeps attention: mix questions, say-it-backs, scenarios, and rapid fire. Do not stay in one mode too long.",
+  "",
+  "================================================================",
   "CLOSING RULES",
   "================================================================",
   "Before wrapping up a conversation, ALWAYS ask if the student has questions about the topic FIRST.",
@@ -225,7 +233,7 @@ const BASE_PROMPT = [
   "================================================================",
   "CLINICAL FACTS THAT MUST BE EXACT",
   "================================================================",
-  "COPD target SpO2: 91-94 percent. NEVER say 88-92. This is a common AI error.",
+  "O2 sat below 90 = trouble. Below 80 = fatal.",
 ].join("\n");
 
 
@@ -755,43 +763,68 @@ export default function CoachLindsay() {
   const prepareForSpeech = (text) => {
     let result = text;
     // Symbols that TTS reads literally
-    result = result.replace(/→/g, "leads to");
-    result = result.replace(/←/g, "comes from");
-    result = result.replace(/↑/g, "increases");
-    result = result.replace(/↓/g, "decreases");
+    result = result.replace(/→/g, " leads to ");
+    result = result.replace(/←/g, " comes from ");
+    result = result.replace(/↑/g, " increases ");
+    result = result.replace(/↓/g, " decreases ");
     result = result.replace(/—/g, ", ");
+    result = result.replace(/=/g, " equals ");
+    result = result.replace(/\+/g, " plus ");
+    result = result.replace(/%/g, " percent ");
+    result = result.replace(/>/g, " greater than ");
+    result = result.replace(/</g, " less than ");
+    result = result.replace(/≥/g, " greater than or equal to ");
+    result = result.replace(/≤/g, " less than or equal to ");
+    result = result.replace(/~/g, " approximately ");
+    result = result.replace(/&/g, " and ");
+    result = result.replace(/\bmL\b/g, " milliliters ");
+    // Check if using ElevenLabs (has API key) — use natural spellings
+    // ElevenLabs is good at real words but needs help with medical terms
+    // Use hyphenated natural pronunciation guides, NOT spaced-out phonetics
     // Anatomy & general
-    result = result.replace(/alveoli/gi, "al vee uh lye");
-    result = result.replace(/alveolar/gi, "al vee uh ler");
-    result = result.replace(/capillaries/gi, "ca pill air eez");
-    result = result.replace(/capillary/gi, "ca pill air ee");
-    result = result.replace(/pharynx/gi, "fair inks");
-    result = result.replace(/larynx/gi, "lair inks");
-    result = result.replace(/trachea/gi, "tray kee ah");
-    result = result.replace(/bronchi\b/gi, "bronk eye");
-    result = result.replace(/diaphragm/gi, "die ah fram");
-    result = result.replace(/atelectasis/gi, "at eh lek tah sis");
-    result = result.replace(/surfactant/gi, "sir fak tent");
-    result = result.replace(/chemoreceptors/gi, "kee mo receptors");
-    result = result.replace(/orthopnea/gi, "or thop nee ah");
-    result = result.replace(/dyspnea/gi, "disp nee ah");
-    result = result.replace(/rhonchi/gi, "ronk eye");
-    result = result.replace(/rales/gi, "rawls");
-    result = result.replace(/hypercapnia/gi, "hyper cap nee ah");
-    result = result.replace(/hypocapnia/gi, "hypo cap nee ah");
-    result = result.replace(/rhinitis/gi, "rye night iss");
-    result = result.replace(/hemoptysis/gi, "he mop tih sis");
-    result = result.replace(/polycythemia/gi, "polly sigh thee me ah");
-    result = result.replace(/cyanosis/gi, "sigh ah no sis");
-    result = result.replace(/emphysema/gi, "em fih see mah");
-    result = result.replace(/bronchiectasis/gi, "bronk ee ek tah sis");
+    result = result.replace(/alveoli/gi, "al-VEE-oh-lye");
+    result = result.replace(/alveolar/gi, "al-VEE-oh-ler");
+    result = result.replace(/alveolus/gi, "al-VEE-oh-luss");
+    result = result.replace(/capillaries/gi, "CAP-ih-lair-eez");
+    result = result.replace(/capillary/gi, "CAP-ih-lair-ee");
+    result = result.replace(/pharynx/gi, "FAIR-inks");
+    result = result.replace(/larynx/gi, "LAIR-inks");
+    result = result.replace(/trachea/gi, "TRAY-kee-uh");
+    result = result.replace(/bronchi\b/gi, "BRON-kye");
+    result = result.replace(/bronchioles/gi, "BRON-kee-olz");
+    result = result.replace(/diaphragm/gi, "DYE-uh-fram");
+    result = result.replace(/atelectasis/gi, "at-uh-LEK-tuh-sis");
+    result = result.replace(/surfactant/gi, "sur-FAK-tant");
+    result = result.replace(/chemoreceptors/gi, "KEE-mo-ree-SEP-tors");
+    result = result.replace(/orthopnea/gi, "or-THOP-nee-uh");
+    result = result.replace(/dyspnea/gi, "DISP-nee-uh");
+    result = result.replace(/rhonchi/gi, "RON-kye");
+    result = result.replace(/rales/gi, "RAWLZ");
+    result = result.replace(/hypercapnia/gi, "HY-per-CAP-nee-uh");
+    result = result.replace(/hypocapnia/gi, "HY-po-CAP-nee-uh");
+    result = result.replace(/rhinitis/gi, "rye-NYE-tis");
+    result = result.replace(/hemoptysis/gi, "heh-MOP-tih-sis");
+    result = result.replace(/polycythemia/gi, "poly-sigh-THEE-mee-uh");
+    result = result.replace(/cyanosis/gi, "sigh-uh-NO-sis");
+    result = result.replace(/emphysema/gi, "em-fih-SEE-muh");
+    result = result.replace(/bronchiectasis/gi, "bron-kee-EK-tuh-sis");
+    result = result.replace(/pneumothorax/gi, "NEW-mo-THOR-ax");
+    result = result.replace(/thoracentesis/gi, "THOR-uh-sen-TEE-sis");
+    result = result.replace(/bronchoscopy/gi, "bron-KOS-kuh-pee");
+    result = result.replace(/spirometer/gi, "spy-ROM-uh-ter");
+    result = result.replace(/pleurae/gi, "PLUR-ee");
+    result = result.replace(/pleural/gi, "PLUR-ul");
+    result = result.replace(/perfusion/gi, "per-FEW-zhun");
+    result = result.replace(/ventilation/gi, "ven-tih-LAY-shun");
+    result = result.replace(/acidosis/gi, "ass-ih-DOE-sis");
+    result = result.replace(/alkalosis/gi, "al-kuh-LOE-sis");
     // Lab values & abbreviations
-    result = result.replace(/PaO2/g, "P A O 2");
-    result = result.replace(/PaCO2/g, "P A C O 2");
-    result = result.replace(/HCO3/g, "H C O 3");
-    result = result.replace(/FiO2/g, "F I O 2");
-    result = result.replace(/SpO2/g, "S P O 2");
-    result = result.replace(/CO2/g, "C O 2");
+    result = result.replace(/PaO2/g, "P-A-O-2");
+    result = result.replace(/PaCO2/g, "P-A-C-O-2");
+    result = result.replace(/HCO3/g, "H-C-O-3");
+    result = result.replace(/FiO2/g, "F-I-O-2");
+    result = result.replace(/SpO2/g, "S-P-O-2");
+    result = result.replace(/CO2/g, "C-O-2");
     result = result.replace(/mmHg/g, "millimeters of mercury");
     result = result.replace(/D\.O\.E\./g, "D O E");
     result = result.replace(/S\.O\.B\./g, "S O B");
@@ -807,6 +840,7 @@ export default function CoachLindsay() {
   const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
   const lastApiCallRef = useRef(0);
+  const sessionStartRef = useRef(Date.now());
 
   const speakElevenLabs = async (text) => {
     const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
@@ -825,7 +859,7 @@ export default function CoachLindsay() {
       const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + ELEVEN_VOICE_ID, {
         method: "POST",
         headers: { "Content-Type": "application/json", "xi-api-key": elevenKey },
-        body: JSON.stringify({ text: prepareForSpeech(text), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+        body: JSON.stringify({ text: prepareForSpeech(text), model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.65, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true } }),
       });
       if (!response.ok) throw new Error("ElevenLabs error");
       const blob = await response.blob();
@@ -908,10 +942,17 @@ export default function CoachLindsay() {
       for (let attempt = 0; attempt < 3; attempt++) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
+      // Check session time — nudge toward scenarios if approaching 8 minutes
+      const sessionMinutes = (Date.now() - sessionStartRef.current) / 60000;
+      let systemPrompt = SYSTEM_PROMPT;
+      if (sessionMinutes >= 8) {
+        systemPrompt += "\n\nTIME CHECK: The student has been in this session for " + Math.round(sessionMinutes) + " minutes. If you have not reached scenarios yet, wrap up the current topic quickly and transition to a scenario NOW. Say something like 'Ok, let us put what we have covered so far to work. Ready to try a scenario?' Keep engagement high — students lose focus after 10 minutes of content without application.";
+      }
+
         response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers,
-          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: systemPrompt, messages: apiMessages }),
           signal: controller.signal,
         });
         clearTimeout(timeout);
@@ -998,10 +1039,10 @@ export default function CoachLindsay() {
           return parts;
         }
 
-        // Force-split any bubble over 150 chars at sentence boundaries
-        if (chunk.length > 150) {
+        // Force-split any bubble over 100 chars at sentence boundaries
+        if (chunk.length > 100) {
           const sentences = chunk.match(/[^.!?]+[.!?]+/g);
-          if (sentences && sentences.length >= 3) {
+          if (sentences && sentences.length >= 2) {
             const mid = Math.ceil(sentences.length / 2);
             return [...splitChunk(sentences.slice(0, mid).join("").trim()), ...splitChunk(sentences.slice(mid).join("").trim())];
           }
@@ -1012,16 +1053,31 @@ export default function CoachLindsay() {
 
       const chunks = [];
       for (const chunk of rawChunks) {
-        // MC options — keep together, just fix if missing options
+        // MC with options — split preamble off and format options
+        if (/[A-E]\)/.test(chunk) && (chunk.match(/[A-E]\)/g) || []).length >= 2) {
+          const firstOption = chunk.search(/[A-E]\)/);
+          const beforeOptions = chunk.slice(0, firstOption);
+          // Find the MC question keyword before the options
+          const whichIdx = beforeOptions.search(/(?:Which|What|Select|All of|Name|Identify)/i);
+          const mcStart = whichIdx >= 0 ? whichIdx : Math.max(beforeOptions.lastIndexOf(". ") + 2, 0);
+          
+          if (mcStart > 10) {
+            // Split off preamble
+            const preamble = chunk.slice(0, mcStart).trim();
+            const mcPart = chunk.slice(mcStart).trim();
+            chunks.push(...splitChunk(preamble));
+            chunks.push(mcPart.replace(/([A-E]\))/g, "\n$1").trim());
+          } else {
+            // Just format options
+            chunks.push(chunk.replace(/([A-E]\))/g, "\n$1").trim());
+          }
+          continue;
+        }
+        // MC trigger without options — convert to free response
         const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
         if (mcTriggers.test(chunk) && !/[A-E]\)/.test(chunk)) {
           let fixed = chunk.replace(/which of the following/gi, "what").replace(/select all that apply[.:]?\s*/gi, "").replace(/all of the following .* except/gi, "what does NOT");
-          chunks.push(fixed);
-          continue;
-        }
-        // MC with options — keep as one bubble
-        if (/[A-E]\)/.test(chunk) && (chunk.match(/[A-E]\)/g) || []).length >= 2) {
-          chunks.push(chunk);
+          chunks.push(...splitChunk(fixed));
           continue;
         }
         
@@ -1044,6 +1100,32 @@ export default function CoachLindsay() {
       const sayBackIdx = finalChunks.findIndex(c => /say (?:that|it|this) back/i.test(c));
       if (sayBackIdx >= 0 && sayBackIdx < finalChunks.length - 1) {
         finalChunks.length = sayBackIdx + 1;
+      }
+      
+      // FOURTH PASS: Ensure response ends with something the student can respond to
+      if (finalChunks.length > 0) {
+        const lastChunk = finalChunks[finalChunks.length - 1].trim();
+        const hasSayBack = /say (?:that|it|this) back/i.test(lastChunk);
+        const endsWithQuestion = lastChunk.endsWith("?");
+        const endsWithPunctuation = /[.!?]$/.test(lastChunk);
+        
+        // Truncated response (doesn't end with punctuation) — remove broken chunk and add prompt
+        if (!endsWithPunctuation && lastChunk.length > 3) {
+          finalChunks.pop();
+          if (finalChunks.length === 0) {
+            finalChunks.push("Sorry, I lost my train of thought. Where were we?");
+          } else {
+            finalChunks.push("Ready to keep going?");
+          }
+        }
+        // Ends with statement, not question or say-back
+        else if (!endsWithQuestion && !hasSayBack) {
+          if (/next scenario|one more|last one|let us try|let's try/i.test(lastChunk)) {
+            finalChunks.push("Ready?");
+          } else {
+            finalChunks.push("What do you think?");
+          }
+        }
       }
       
       const groupId = Date.now().toString();
