@@ -638,27 +638,31 @@ export default function CoachLindsay() {
   const [voiceMode, setVoiceMode] = useState(false);
   const voiceModeRef = useRef(false);
 
+  const silenceTimerRef = useRef(null);
+
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const r = new SpeechRecognition();
-      r.continuous = false; r.interimResults = true; r.lang = "en-US";
+      r.continuous = true; r.interimResults = true; r.lang = "en-US";
       r.onresult = (e) => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
         setInput(transcript);
-        // Do NOT auto-send. Let the student see what was heard and press Send.
-        if (e.results[e.results.length - 1].isFinal) {
+        // Reset silence timer every time we hear something — give student time to think
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          // 4 seconds of silence after last speech — stop listening
+          if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e) {} }
           setIsListening(false);
-        }
+        }, 4000);
       };
       r.onend = () => {
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         setIsListening(false);
-        // If voice mode is still on but we stopped (silence timeout), restart after a beat
-        // But NOT if we just sent a message (loading will be true)
       };
       r.onerror = (e) => {
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         if (e.error === "no-speech" && voiceModeRef.current) {
-          // Silence — just restart listening
           setIsListening(false);
           setTimeout(() => startListening(), 500);
         } else {
@@ -826,6 +830,7 @@ export default function CoachLindsay() {
     const text = (overrideText || input).trim();
     if (!text || loading) return;
     // Stop listening while we process
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     if (isListening && recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e) {} setIsListening(false); }
     setInput(""); setError(null);
     const userMsg = { role: "user", content: text };
