@@ -772,7 +772,9 @@ export default function CoachLindsay() {
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
+      const anthropicKey = (() => { try { return import.meta.env.VITE_ANTHROPIC_API_KEY || ""; } catch(e) { return ""; } })();
       const headers = { "Content-Type": "application/json" };
+      if (anthropicKey) { headers["x-api-key"] = anthropicKey; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers,
