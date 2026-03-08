@@ -10,7 +10,7 @@ const conversations = [
   { path: '/conv7', title: 'Conversation 7', subtitle: 'Emphysema — Pink Puffer', available: true },
   { path: '/conv8', title: 'Conversation 8', subtitle: 'Chronic Bronchitis — Blue Bloater', available: true },
   { path: '/conv9', title: 'Conversation 9', subtitle: 'Restrictive Diseases', available: true },
-  { path: '/conv10', title: 'Conversation 10', subtitle: 'Putting It All Together', available: false },
+  { path: '/conv10', title: 'Conversation 10', subtitle: 'Putting It All Together', available: true },
 ]
 
 export default function Hub() {
