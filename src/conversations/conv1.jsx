@@ -99,10 +99,23 @@ const BASE_PROMPT = [
   "Example: Student says 'the airways are tight.' → 'What might cause the airways to tighten like that?' → guide to inflammation, bronchospasm, asthma, COPD.",
   "This applies to EVERY concept, not just breath sounds. Symptoms, lab values, physical findings — always push one layer deeper.",
   "",
+  "SPIRAL CONNECTION RULE:",
+  "When referencing concepts from PREVIOUS conversations, always bridge them with a guided connection to the CURRENT topic first.",
+  "NEVER throw in a concept from an earlier conversation cold. Build a bridge.",
+  "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?' — out of nowhere.",
+  "RIGHT: 'We said loss of surfactant leads to collapsed alveoli. How does that affect diffusion?' — connects current to previous.",
+  "",
+  "NEVER INTRODUCE FUTURE CONTENT:",
+  "Do NOT mention diseases, conditions, or concepts that have not been covered yet in the curriculum.",
+  "Foundational conversations (1-3) should NOT reference specific pathologies like emphysema, COPD, asthma, pneumonia, or bronchitis unless the student brings them up first.",
+  "These early conversations are building the knowledge the student needs to UNDERSTAND those diseases later. Do not spoil the progression.",
+  "",
   "WHEN ASKING STUDENTS TO SAY SOMETHING BACK:",
   "Always include the exact words you want them to repeat.",
   "WRONG: 'Say that back to me.'",
   "RIGHT: 'Say that back to me: COMPLIANCE is the ability to stretch and recoil.'",
+  "'Say that back' or 'say it back' MUST be the LAST bubble in your response. STOP there. Wait for the student to actually say it back before continuing.",
+  "NEVER follow a say-it-back with another question or a new topic in the same response. The student needs space to respond.",
   "",
   "NEVER ask 'Does that make sense?' without a follow-up question to test it.",
   "",
@@ -152,11 +165,22 @@ const BASE_PROMPT = [
   "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?'",
   "This is WRONG because there are no options listed. The student has nothing to choose from.",
   "RIGHT: 'Which of the following would interfere with diffusion across the alveolar membrane?\\nA) Thickened membrane\\nB) Increased blood flow\\nC) Fluid in the alveoli\\nD) High hemoglobin'",
-  "If you write 'which of the following' or 'select all that apply' or 'all of the following EXCEPT', you MUST list A) B) C) D) options. No exceptions.",
+  "If your response contains the words 'which of the following' or 'which are true' or 'which is true' or 'what are true' or 'what is true' or 'select all that apply' or 'all of the following EXCEPT', you MUST include A) B) C) D) answer choices.",
   "Each MC question = OWN bubble. Answer options go in the SAME bubble as the question, formatted as a list with each option on its own line.",
   "Use a newline before each option. Format like this:",
   "WRONG: 'Which of the following causes wheezing? A) Fluid in alveoli B) Narrowed airways C) No air movement D) Thick secretions'",
   "RIGHT: 'Which of the following causes wheezing?\\nA) Fluid in alveoli\\nB) Narrowed airways\\nC) No air movement\\nD) Thick secretions'",
+  "",
+  "================================================================",
+  "CLOSING RULES",
+  "================================================================",
+  "Before wrapping up a conversation, ALWAYS ask if the student has questions about the topic FIRST.",
+  "'Do you have any questions about [topic of this conversation]?' (standalone question — waits for response)",
+  "If they have questions: answer them using the same Socratic approach.",
+  "If they say no: THEN offer to stop or continue.",
+  "'Want to keep practicing or call it for today?'",
+  "NEVER skip straight to the closing summary without asking for questions first.",
+  "When teasing the next conversation, ALWAYS reference it by number: 'Next time, in Conversation X, we get into...'",
   "",
   "================================================================",
   "CLINICAL FACTS THAT MUST BE EXACT",
@@ -304,7 +328,7 @@ const CONVERSATION_PROMPT = [
   "",
   "STEP 9 — CLOSING:",
   "'Really solid work today. You just built the foundation for everything we are going to cover.'",
-  "'Next time we will talk about compliance, surfactant, and what drives breathing. See you then. I am here when you want to practice.'",
+  "'Next time, in Conversation 2, we get into compliance, surfactant, and what drives breathing. See you then. I am here when you want to practice.'",
   "",
   "================================================================",
   "FINAL CHECK — BEFORE EVERY RESPONSE:",
@@ -367,7 +391,7 @@ export default function CoachLindsay() {
   const [error, setError] = useState(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [voiceSpeed, setVoiceSpeed] = useState(1.15);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [exchangeCount, setExchangeCount] = useState(0);
@@ -490,6 +514,12 @@ export default function CoachLindsay() {
   // ================================================================
   const prepareForSpeech = (text) => {
     let result = text;
+    // Symbols that TTS reads literally
+    result = result.replace(/→/g, "leads to");
+    result = result.replace(/←/g, "comes from");
+    result = result.replace(/↑/g, "increases");
+    result = result.replace(/↓/g, "decreases");
+    result = result.replace(/—/g, ", ");
     // Anatomy & general
     result = result.replace(/alveoli/gi, "al vee uh lye");
     result = result.replace(/alveolar/gi, "al vee uh ler");
@@ -534,27 +564,69 @@ export default function CoachLindsay() {
     return result;
   };
 
+  const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
+  const currentAudioRef = useRef(null);
+
+  const speakElevenLabs = async (text) => {
+    const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
+    if (!elevenKey) {
+      // Fallback to browser TTS
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.rate = voiceSpeed;
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve();
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+    try {
+      const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + ELEVEN_VOICE_ID, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "xi-api-key": elevenKey },
+        body: JSON.stringify({ text: prepareForSpeech(text), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+      });
+      if (!response.ok) throw new Error("ElevenLabs error");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      return new Promise((resolve, reject) => {
+        const audio = new Audio(url);
+        audio.playbackRate = voiceSpeed;
+        currentAudioRef.current = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; reject(); };
+        audio.play();
+      });
+    } catch (e) {
+      // Fallback to browser TTS
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.rate = voiceSpeed;
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve();
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+  };
+
   const speakBubbles = useCallback((texts) => {
-    if (!voiceEnabledRef.current || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (!voiceEnabledRef.current) return;
+    if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+    window.speechSynthesis?.cancel();
     speakQueueRef.current = [...texts];
     isSpeakingRef.current = true;
     setIsSpeaking(true);
-    const speakNext = () => {
+    const speakNext = async () => {
       if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
       const text = speakQueueRef.current.shift();
-      const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.rate = voiceSpeed;
-      utterance.pitch = 1.0;
-      utterance.onend = () => setTimeout(speakNext, 350);
-      utterance.onerror = () => { isSpeakingRef.current = false; setIsSpeaking(false); };
-      window.speechSynthesis.speak(utterance);
+      try { await speakElevenLabs(text); } catch(e) {}
+      setTimeout(speakNext, 250);
     };
     speakNext();
   }, [selectedVoice, voiceSpeed]);
 
-  const stopSpeaking = () => { window.speechSynthesis?.cancel(); speakQueueRef.current = []; isSpeakingRef.current = false; setIsSpeaking(false); };
+  const stopSpeaking = () => { if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; } window.speechSynthesis?.cancel(); speakQueueRef.current = []; isSpeakingRef.current = false; setIsSpeaking(false); };
 
   // Old toggleListening replaced by toggleVoiceMode above
 
@@ -578,9 +650,10 @@ export default function CoachLindsay() {
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
+      const headers = { "Content-Type": "application/json" };
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers,
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
         signal: controller.signal,
       });
@@ -635,7 +708,7 @@ export default function CoachLindsay() {
 
         // MC options stay in the same bubble — formatted with newlines
         // Safety net: if MC trigger phrase found without options, convert to free response
-        const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+        const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
         if (mcTriggers.test(chunk) && !/[A-E]\)/.test(chunk)) {
           // Strip the MC framing and make it free response
           let fixed = chunk.replace(/which of the following/gi, "what").replace(/select all that apply[.:]?\s*/gi, "").replace(/all of the following .* except/gi, "what does NOT");
@@ -647,7 +720,7 @@ export default function CoachLindsay() {
       }
       
       // SECOND PASS: Fix any MC questions that lost their options during splitting
-      const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+      const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
       const finalChunks = chunks.map(c => {
         if (mcTriggers.test(c) && !/[A-E]\)/.test(c)) {
           return c.replace(/which of the following/gi, "what").replace(/[Ss]elect all that apply[.:]?\s*/g, "").replace(/all of the following .* except/gi, "what does NOT").trim();
@@ -656,6 +729,12 @@ export default function CoachLindsay() {
         if (/^select all that apply[.!]?$/i.test(c.trim())) return null;
         return c;
       }).filter(c => c && c.trim().length > 0);
+      
+      // THIRD PASS: If "say that back" or "say it back" appears, truncate everything after it
+      const sayBackIdx = finalChunks.findIndex(c => /say (?:that|it|this) back/i.test(c));
+      if (sayBackIdx >= 0 && sayBackIdx < finalChunks.length - 1) {
+        finalChunks.length = sayBackIdx + 1;
+      }
       
       const groupId = Date.now().toString();
       const newBubbles = finalChunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === finalChunks.length - 1, animDelay: i * 1500 }));
@@ -688,7 +767,7 @@ export default function CoachLindsay() {
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))} style={{ fontSize: "11px", padding: "2px 4px", border: "1px solid #E8E0D6", borderRadius: "8px", backgroundColor: "#FFF", color: "#8B7355", fontFamily: "'Source Serif 4', Georgia, serif" }}>
-              <option value={0.8}>0.8x</option><option value={0.9}>0.9x</option><option value={1.0}>1.0x</option><option value={1.1}>1.1x</option><option value={1.2}>1.2x</option>
+              <option value={0.9}>0.9x</option><option value={1.0}>1.0x</option><option value={1.15}>1.15x</option><option value={1.3}>1.3x</option><option value={1.5}>1.5x</option>
             </select>
             <button onClick={() => { const next = !voiceEnabled; setVoiceEnabled(next); voiceEnabledRef.current = next; if (!next) stopSpeaking(); else { const lastGroup = messages.filter(m => m.role === "assistant").slice(-4); if (lastGroup.length > 0) setTimeout(() => speakBubbles(lastGroup.map(m => m.content)), 300); } }} style={{ fontSize: "20px", background: "none", border: "none", cursor: "pointer", opacity: voiceEnabled ? 1 : 0.4 }}>{voiceEnabled ? "\uD83D\uDD0A" : "\uD83D\uDD07"}</button>
           </div>

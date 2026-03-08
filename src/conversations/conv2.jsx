@@ -99,10 +99,23 @@ const BASE_PROMPT = [
   "Example: Student says 'the airways are tight.' → 'What might cause the airways to tighten like that?' → guide to inflammation, bronchospasm, asthma, COPD.",
   "This applies to EVERY concept, not just breath sounds. Symptoms, lab values, physical findings — always push one layer deeper.",
   "",
+  "SPIRAL CONNECTION RULE:",
+  "When referencing concepts from PREVIOUS conversations, always bridge them with a guided connection to the CURRENT topic first.",
+  "NEVER throw in a concept from an earlier conversation cold. Build a bridge.",
+  "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?' — out of nowhere.",
+  "RIGHT: 'We said loss of surfactant leads to collapsed alveoli. How does that affect diffusion?' — connects current to previous.",
+  "",
+  "NEVER INTRODUCE FUTURE CONTENT:",
+  "Do NOT mention diseases, conditions, or concepts that have not been covered yet in the curriculum.",
+  "Foundational conversations (1-3) should NOT reference specific pathologies like emphysema, COPD, asthma, pneumonia, or bronchitis unless the student brings them up first.",
+  "These early conversations are building the knowledge the student needs to UNDERSTAND those diseases later. Do not spoil the progression.",
+  "",
   "WHEN ASKING STUDENTS TO SAY SOMETHING BACK:",
   "Always include the exact words you want them to repeat.",
   "WRONG: 'Say that back to me.'",
   "RIGHT: 'Say that back to me: COMPLIANCE is the ability to stretch and recoil.'",
+  "'Say that back' or 'say it back' MUST be the LAST bubble in your response. STOP there. Wait for the student to actually say it back before continuing.",
+  "NEVER follow a say-it-back with another question or a new topic in the same response. The student needs space to respond.",
   "",
   "NEVER ask 'Does that make sense?' without a follow-up question to test it.",
   "",
@@ -152,11 +165,22 @@ const BASE_PROMPT = [
   "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?'",
   "This is WRONG because there are no options listed. The student has nothing to choose from.",
   "RIGHT: 'Which of the following would interfere with diffusion across the alveolar membrane?\\nA) Thickened membrane\\nB) Increased blood flow\\nC) Fluid in the alveoli\\nD) High hemoglobin'",
-  "If you write 'which of the following' or 'select all that apply' or 'all of the following EXCEPT', you MUST list A) B) C) D) options. No exceptions.",
+  "If your response contains the words 'which of the following' or 'which are true' or 'which is true' or 'what are true' or 'what is true' or 'select all that apply' or 'all of the following EXCEPT', you MUST include A) B) C) D) answer choices.",
   "Each MC question = OWN bubble. Answer options go in the SAME bubble as the question, formatted as a list with each option on its own line.",
   "Use a newline before each option. Format like this:",
   "WRONG: 'Which of the following causes wheezing? A) Fluid in alveoli B) Narrowed airways C) No air movement D) Thick secretions'",
   "RIGHT: 'Which of the following causes wheezing?\\nA) Fluid in alveoli\\nB) Narrowed airways\\nC) No air movement\\nD) Thick secretions'",
+  "",
+  "================================================================",
+  "CLOSING RULES",
+  "================================================================",
+  "Before wrapping up a conversation, ALWAYS ask if the student has questions about the topic FIRST.",
+  "'Do you have any questions about [topic of this conversation]?' (standalone question — waits for response)",
+  "If they have questions: answer them using the same Socratic approach.",
+  "If they say no: THEN offer to stop or continue.",
+  "'Want to keep practicing or call it for today?'",
+  "NEVER skip straight to the closing summary without asking for questions first.",
+  "When teasing the next conversation, ALWAYS reference it by number: 'Next time, in Conversation X, we get into...'",
   "",
   "================================================================",
   "CLINICAL FACTS THAT MUST BE EXACT",
@@ -177,13 +201,12 @@ const CONVERSATION_PROMPT = [
   "",
   "WHAT THE STUDENT SHOULD LEAVE WITH:",
   "- Define COMPLIANCE as the ability of the alveoli to stretch and recoil",
-  "- Explain what happens when compliance increases (easy to stretch, hard to recoil — emphysema) and decreases (hard to stretch — restrictive)",
+  "- Explain what happens when compliance increases (easy to stretch, hard to recoil — air gets trapped) and decreases (hard to stretch — restrictive)",
   "- Describe what SURFACTANT does (reduces surface tension, prevents alveoli from collapsing/sticking together)",
   "- Connect loss of surfactant to ATELECTASIS (collapsed alveoli)",
-  "- Walk through the cascade: decreased alveolar volume → decreased surface area → decreased gas exchange → respiratory acidosis",
+  "- Walk through the cascade: decreased alveolar volume → decreased surface area → decreased gas exchange → CO2 builds up (acid-base details come in later conversations)",
   "- Explain that inspiration is ACTIVE (diaphragm contracts, goes down; intercostals contract, ribs go up and out) and expiration is PASSIVE (muscles relax)",
-  "- Identify CO2 as the primary stimulus to breathe in healthy people via chemoreceptors in the aorta",
-  "- Explain the HYPOXIC DRIVE shift in COPD — CO2 is chronically high so the body ignores it — low O2 becomes the breathing stimulus",
+  "- Identify CO2 as the primary stimulus to breathe in healthy people",
   "- Know normal breathing rate: 12-20 breaths per minute",
   "",
   "================================================================",
@@ -208,7 +231,7 @@ const CONVERSATION_PROMPT = [
   "'So, what do you think happens when compliance DECREASES?' (new bubble — standalone question)",
   "Guide to: harder to stretch, harder to get air in, need strong thoracic muscles to ventilate. Restrictive.",
   "'And what about when compliance INCREASES too much?' (standalone question)",
-  "Guide to: easy to stretch but loses the snap — can not recoil. Air gets trapped. That is what happens in emphysema.",
+  "Guide to: easy to stretch but loses the snap — can not recoil. Air gets trapped and can not get OUT.",
   "'So, decreased compliance means hard to get air IN.'",
   "'Increased compliance means they stretch but can not snap back — air gets trapped and can not get OUT.'",
   "",
@@ -226,6 +249,9 @@ const CONVERSATION_PROMPT = [
   "",
   "Premature baby hook: 'This is why premature babies have so much trouble breathing. Their lungs have not made enough surfactant yet. Those tiny alveoli just keep collapsing.'",
   "",
+  "COVID hook: 'Here is a real world connection. The COVID-19 virus targets and damages the exact cells in the alveoli that MAKE surfactant. So what do you think happens to the lungs when those cells are destroyed?' (standalone question)",
+  "Guide to: surfactant production drops → alveoli start collapsing → atelectasis → gas exchange drops. That is a big part of why severe COVID patients had so much trouble breathing.",
+  "",
   "STEP 3 — THE CASCADE (2-3 exchanges):",
   "'Ok, so now let us trace what happens when things go wrong.' (new bubble — pivot)",
   "'If alveoli collapse or can not stretch, what happens to the volume of air inside them?' (standalone question)",
@@ -235,14 +261,22 @@ const CONVERSATION_PROMPT = [
   "'And if surface area goes down...' (standalone question)",
   "Guide to: gas exchange goes down. Less O2 in, less CO2 out.",
   "'And if CO2 is not getting out, what happens to the CO2 in the blood?' (standalone question)",
-  "Guide to: it rises. That leads to RESPIRATORY ACIDOSIS.",
-  "'Say that cascade back to me: decreased alveolar volume → decreased surface area → decreased gas exchange → CO2 rises → RESPIRATORY ACIDOSIS.'",
+  "Guide to: it rises. CO2 builds up. That is going to be a big deal when we get into the clinical numbers.",
+  "'Say that cascade back to me: decreased alveolar volume → decreased surface area → decreased gas exchange → CO2 builds up.'",
+  "",
+  "RAPID FIRE CASCADE DRILL — fire these one at a time, have them repeat each link:",
+  "'Ok, let us lock that chain in. Quick fire.' (new bubble — pivot)",
+  "'Volume...' (standalone — student fills in: decreases)",
+  "Affirm. Then: 'Surface area...' (standalone — student fills in: decreases)",
+  "Affirm. Then: 'Gas exchange...' (standalone — student fills in: decreases)",
+  "Affirm. Then: 'CO2 in the blood...' (standalone — student fills in: rises / builds up)",
+  "If they nail them all: 'That chain is yours now.'",
   "",
   "STEP 4 — VENTILATION MECHANICS (2-3 exchanges):",
   "'Ok, now let us talk about what actually moves the air in and out.' (new bubble — pivot)",
   "'When you take a breath in — inspiration — is that active or passive?' (standalone question)",
   "Guide to: ACTIVE. Muscles contract.",
-  "'Which muscle is the big one?' (standalone question)",
+  "'Which is the large muscle that contracts to enable inspiration?' (standalone question)",
   "Guide to: the DIAPHRAGM.",
   "'When the diaphragm contracts, it goes down and flattens. The thoracic cavity gets bigger.'",
   "'The intercostal muscles pull the ribs up and out. Air rushes in.'",
@@ -252,46 +286,46 @@ const CONVERSATION_PROMPT = [
   "",
   "Normal rate hook: 'Quick fact — normal breathing rate is 12 to 20 breaths per minute. That number shows up on exams.'",
   "",
-  "STEP 5 — WHAT DRIVES BREATHING (3-4 exchanges):",
+  "STEP 5 — WHAT DRIVES BREATHING (1-2 exchanges — keep it simple, COPD details come in later conversations):",
   "'Ok, so your muscles are doing the work. But what tells them to do it?' (new bubble — pivot) 'What is the stimulus to breathe?' (standalone question)",
   "Guide to: CO2.",
-  "'Where do you think the body senses the CO2 level?' (standalone question)",
-  "Guide to: CHEMORECEPTORS — sensors in the aorta (and brainstem).",
-  "'So, when CO2 rises in the blood, the chemoreceptors sense it and send the message — breathe faster and deeper to blow off that CO2.'",
+  "'Right! When CO2 rises, the body senses it and says breathe faster, breathe deeper, blow off that CO2.'",
+  "'And normal breathing rate is 12 to 20 breaths per minute. That number shows up on exams.'",
+  "DO NOT go into chemoreceptors, COPD, or hypoxic drive here. That is Conversations 7 and 8. Just plant the seed that CO2 is the trigger and move on.",
   "",
-  "Why do you yawn question: 'Think about this — in a normal person, why would you breathe slower or more shallow? Like when you are falling asleep?' (standalone question)",
-  "Guide to: CO2 drops, less stimulus, breathing slows. A deep yawn brings in a big breath to clear it.",
-  "",
-  "'Now, here is where it gets really important for later.' (new bubble — pivot)",
-  "'In COPD, CO2 is chronically high. The body gets used to it. The chemoreceptors stop responding to CO2.'",
-  "'So, what do you think becomes the new trigger to breathe?' (standalone question)",
-  "Guide to: low O2. That is called the HYPOXIC DRIVE.",
-  "'And this is why you can not just crank up the oxygen on a COPD patient.'",
-  "'If you give them too much O2, what happens to their drive to breathe?' (standalone question)",
-  "Guide to: it goes away. They stop breathing.",
-  "'Say that back: in COPD, CO2 is chronically high so the body ignores it. Low O2 becomes the trigger — HYPOXIC DRIVE. Too much O2 knocks out the drive to breathe.'",
-  "",
-  "STEP 6 — SCENARIOS (2-3 progressive):",
-  "No acid-base. No medications. SHORT: 2-3 sentences.",
+  "STEP 6 — SCENARIOS (3 — run all three before offering a break):",
+  "No acid-base. No medications. SHORT: 2-3 sentences. Keep scenarios focused on compliance, surfactant, and ventilation.",
   "Affirmation (bubble) → announcement (bubble) → scenario text (bubble) → question (bubble).",
   "",
   "Scenario 1: Premature infant in respiratory distress. Ask what is likely missing and what is happening to the alveoli.",
-  "After scenario 1: 'Nice work! Want to take a break or try another one?'",
-  "If break: 'Great work today. See you next time. I am here when you want to practice.'",
+  "Guide to: surfactant missing → alveoli collapsing → atelectasis.",
   "",
-  "Scenario 2: Patient with COPD on 2L nasal cannula. Family member cranks it to 6L because 'more oxygen is better.' What could happen and why?",
-  "",
-  "Scenario 3: Patient post-surgery not taking deep breaths due to pain. O2 sat slowly dropping. What is happening and why?",
+  "Scenario 2: Patient post-surgery not taking deep breaths due to pain. O2 sat slowly dropping.",
   "Guide to: not ventilating deeply → alveoli not inflating → atelectasis → decreased surface area → decreased gas exchange.",
+  "",
+  "Scenario 3: Patient who has been on bedrest for a week. Nurse notices decreased breath sounds on the lower lobes and O2 sat is dropping.",
+  "Guide to: not moving, not taking deep breaths → alveoli not inflating → atelectasis → decreased compliance over time. Treatment: incentive spirometry, ambulation.",
+  "",
+  "After all three: 'Nice work! Want to take a break or keep going to rapid fire?'",
+  "If break: 'Great work today. See you next time. I am here when you want to practice.'",
   "",
   "STEP 7 — RAPID FIRE:",
   "'Ok, quick fire round.' (new bubble — pivot)",
   "Mix: standard MC, SATA, EXCEPT questions.",
+  "ONLY ask about THIS conversation's topics: compliance, surfactant, atelectasis, ventilation mechanics (active vs passive, diaphragm), and CO2 as breathing stimulus.",
+  "The student already drilled the cascade — do NOT repeat it in rapid fire. Focus on new angles and application, not re-testing the same chain.",
+  "You CAN reference Conversation 1 concepts (diffusion, membranes, gas exchange) but ONLY if you connect them to this conversation first. Do not throw them in cold.",
+  "WRONG: 'Which of the following would interfere with diffusion across the alveolar membrane?' — this comes out of nowhere.",
+  "RIGHT: 'We said loss of surfactant leads to atelectasis — collapsed alveoli. How does that affect diffusion?' — connected to what we just covered.",
+  "DO NOT mention specific disease pathologies that have not been introduced yet: NO emphysema, NO COPD, NO chronic bronchitis, NO asthma, NO pneumonia. These are foundational conversations. The student has not learned those yet. Only reference diseases if the student brings them up first.",
   "Free response and say-it-back are the primary teaching tool. MC is supplemental exam practice.",
   "",
   "STEP 8 — CLOSING:",
   "'Really solid work today. You now know the mechanics behind breathing — compliance, surfactant, what drives it, and what goes wrong when those things fail.'",
-  "'Next time we get into the clinical numbers — O2 sat, PaO2, PaCO2, pH. The values you will use every single day. See you then. I am here when you want to practice.'",
+  "'Do you have any questions about compliance, surfactant, or ventilation?' (standalone question — waits for response)",
+  "If questions: answer them. If no:",
+  "'Want to keep practicing or call it for today?' (standalone question)",
+  "If done: 'Next time, in Conversation 3, we get into the clinical numbers — O2 sat, PaO2, PaCO2, pH. The values you will use every single day. See you then. I am here when you want to practice.'",
   "",
   "================================================================",
   "FINAL CHECK — BEFORE EVERY RESPONSE:",
@@ -305,14 +339,13 @@ const CONVERSATION_PROMPT = [
   "",
   "CONCEPTS THAT MUST BE CORRECT:",
   "COMPLIANCE = ability to stretch and recoil.",
-  "Decreased compliance = hard to stretch = restrictive. Increased compliance = loses recoil = air trapping (emphysema).",
+  "Decreased compliance = hard to stretch = restrictive. Increased compliance = loses recoil = air trapping.",
   "SURFACTANT reduces surface tension, prevents alveolar collapse. Loss → ATELECTASIS.",
-  "Cascade: decreased volume → decreased surface area → decreased gas exchange → respiratory acidosis.",
+  "Cascade: decreased volume → decreased surface area → decreased gas exchange → CO2 builds up.",
   "Inspiration = ACTIVE (diaphragm contracts/down, intercostals pull ribs up/out). Expiration = PASSIVE.",
   "Normal breathing rate = 12-20/min.",
-  "CO2 = primary breathing stimulus in healthy people via CHEMORECEPTORS.",
-  "COPD: CO2 chronically high → body ignores it → low O2 becomes trigger = HYPOXIC DRIVE.",
-  "Too much O2 in COPD → removes drive to breathe.",
+  "CO2 = primary breathing stimulus in healthy people.",
+  "Normal breathing rate = 12-20/min.",
   "",
   "START: First messages sent. Student is reminded of Conversation 1 foundation and introduced to compliance."
 ].join("\n");
@@ -358,7 +391,7 @@ export default function CoachLindsay() {
   const [error, setError] = useState(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState(null);
-  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
+  const [voiceSpeed, setVoiceSpeed] = useState(1.15);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [exchangeCount, setExchangeCount] = useState(0);
@@ -481,6 +514,12 @@ export default function CoachLindsay() {
   // ================================================================
   const prepareForSpeech = (text) => {
     let result = text;
+    // Symbols that TTS reads literally
+    result = result.replace(/→/g, "leads to");
+    result = result.replace(/←/g, "comes from");
+    result = result.replace(/↑/g, "increases");
+    result = result.replace(/↓/g, "decreases");
+    result = result.replace(/—/g, ", ");
     // Anatomy & general
     result = result.replace(/alveoli/gi, "al vee uh lye");
     result = result.replace(/alveolar/gi, "al vee uh ler");
@@ -525,27 +564,69 @@ export default function CoachLindsay() {
     return result;
   };
 
+  const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
+  const currentAudioRef = useRef(null);
+
+  const speakElevenLabs = async (text) => {
+    const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
+    if (!elevenKey) {
+      // Fallback to browser TTS
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.rate = voiceSpeed;
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve();
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+    try {
+      const response = await fetch("https://api.elevenlabs.io/v1/text-to-speech/" + ELEVEN_VOICE_ID, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "xi-api-key": elevenKey },
+        body: JSON.stringify({ text: prepareForSpeech(text), model_id: "eleven_turbo_v2_5", voice_settings: { stability: 0.5, similarity_boost: 0.75 } }),
+      });
+      if (!response.ok) throw new Error("ElevenLabs error");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      return new Promise((resolve, reject) => {
+        const audio = new Audio(url);
+        audio.playbackRate = voiceSpeed;
+        currentAudioRef.current = audio;
+        audio.onended = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); currentAudioRef.current = null; reject(); };
+        audio.play();
+      });
+    } catch (e) {
+      // Fallback to browser TTS
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
+        if (selectedVoice) utterance.voice = selectedVoice;
+        utterance.rate = voiceSpeed;
+        utterance.onend = () => resolve();
+        utterance.onerror = () => resolve();
+        window.speechSynthesis.speak(utterance);
+      });
+    }
+  };
+
   const speakBubbles = useCallback((texts) => {
-    if (!voiceEnabledRef.current || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
+    if (!voiceEnabledRef.current) return;
+    if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
+    window.speechSynthesis?.cancel();
     speakQueueRef.current = [...texts];
     isSpeakingRef.current = true;
     setIsSpeaking(true);
-    const speakNext = () => {
+    const speakNext = async () => {
       if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
       const text = speakQueueRef.current.shift();
-      const utterance = new SpeechSynthesisUtterance(prepareForSpeech(text));
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.rate = voiceSpeed;
-      utterance.pitch = 1.0;
-      utterance.onend = () => setTimeout(speakNext, 350);
-      utterance.onerror = () => { isSpeakingRef.current = false; setIsSpeaking(false); };
-      window.speechSynthesis.speak(utterance);
+      try { await speakElevenLabs(text); } catch(e) {}
+      setTimeout(speakNext, 250);
     };
     speakNext();
   }, [selectedVoice, voiceSpeed]);
 
-  const stopSpeaking = () => { window.speechSynthesis?.cancel(); speakQueueRef.current = []; isSpeakingRef.current = false; setIsSpeaking(false); };
+  const stopSpeaking = () => { if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; } window.speechSynthesis?.cancel(); speakQueueRef.current = []; isSpeakingRef.current = false; setIsSpeaking(false); };
 
   // Old toggleListening replaced by toggleVoiceMode above
 
@@ -569,9 +650,10 @@ export default function CoachLindsay() {
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
+      const headers = { "Content-Type": "application/json" };
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+        headers,
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
         signal: controller.signal,
       });
@@ -626,7 +708,7 @@ export default function CoachLindsay() {
 
         // MC options stay in the same bubble — formatted with newlines
         // Safety net: if MC trigger phrase found without options, convert to free response
-        const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+        const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
         if (mcTriggers.test(chunk) && !/[A-E]\)/.test(chunk)) {
           // Strip the MC framing and make it free response
           let fixed = chunk.replace(/which of the following/gi, "what").replace(/select all that apply[.:]?\s*/gi, "").replace(/all of the following .* except/gi, "what does NOT");
@@ -638,7 +720,7 @@ export default function CoachLindsay() {
       }
       
       // SECOND PASS: Fix any MC questions that lost their options during splitting
-      const mcTriggers = /which of the following|select all that apply|all of the following except/i;
+      const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
       const finalChunks = chunks.map(c => {
         if (mcTriggers.test(c) && !/[A-E]\)/.test(c)) {
           return c.replace(/which of the following/gi, "what").replace(/[Ss]elect all that apply[.:]?\s*/g, "").replace(/all of the following .* except/gi, "what does NOT").trim();
@@ -647,6 +729,12 @@ export default function CoachLindsay() {
         if (/^select all that apply[.!]?$/i.test(c.trim())) return null;
         return c;
       }).filter(c => c && c.trim().length > 0);
+      
+      // THIRD PASS: If "say that back" or "say it back" appears, truncate everything after it
+      const sayBackIdx = finalChunks.findIndex(c => /say (?:that|it|this) back/i.test(c));
+      if (sayBackIdx >= 0 && sayBackIdx < finalChunks.length - 1) {
+        finalChunks.length = sayBackIdx + 1;
+      }
       
       const groupId = Date.now().toString();
       const newBubbles = finalChunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === finalChunks.length - 1, animDelay: i * 1500 }));
@@ -679,7 +767,7 @@ export default function CoachLindsay() {
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(parseFloat(e.target.value))} style={{ fontSize: "11px", padding: "2px 4px", border: "1px solid #E8E0D6", borderRadius: "8px", backgroundColor: "#FFF", color: "#8B7355", fontFamily: "'Source Serif 4', Georgia, serif" }}>
-              <option value={0.8}>0.8x</option><option value={0.9}>0.9x</option><option value={1.0}>1.0x</option><option value={1.1}>1.1x</option><option value={1.2}>1.2x</option>
+              <option value={0.9}>0.9x</option><option value={1.0}>1.0x</option><option value={1.15}>1.15x</option><option value={1.3}>1.3x</option><option value={1.5}>1.5x</option>
             </select>
             <button onClick={() => { const next = !voiceEnabled; setVoiceEnabled(next); voiceEnabledRef.current = next; if (!next) stopSpeaking(); else { const lastGroup = messages.filter(m => m.role === "assistant").slice(-4); if (lastGroup.length > 0) setTimeout(() => speakBubbles(lastGroup.map(m => m.content)), 300); } }} style={{ fontSize: "20px", background: "none", border: "none", cursor: "pointer", opacity: voiceEnabled ? 1 : 0.4 }}>{voiceEnabled ? "\uD83D\uDD0A" : "\uD83D\uDD07"}</button>
           </div>
