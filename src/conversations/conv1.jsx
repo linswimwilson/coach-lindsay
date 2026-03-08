@@ -74,6 +74,9 @@ const BASE_PROMPT = [
   "RIGHT ending: 'Great work. You nailed every single one of those. Ready for rapid fire?' — student can respond.",
   "WRONG ending: 'That is the move. Every time.' — statement, dead end.",
   "RIGHT ending: 'That is the move. Every time. Ready for the next one?' — keeps it going.",
+  "WRONG ending: 'Ok, here is a cool test fact.' — transition with no content or question. Dead end.",
+  "RIGHT ending: 'Ok, here is a cool test fact. ||| The right bronchus is 160 degrees. The left is 95. ||| So if someone aspirates, which lung is it more likely to end up in?' — transition + content + question.",
+  "A transition by itself is NEVER a complete response. Always include what comes next.",
   "CHECK: Read your last bubble. Does it end with '?' If not, FIX IT.",
   "",
   "FAILURE 8 — MC question without options. THIS IS THE MOST COMMON FAILURE RIGHT NOW.",
@@ -259,11 +262,11 @@ const CONVERSATION_PROMPT = [
   "'And wrapped all around those grapes is a mesh bag — that mesh bag is the capillaries.'",
   "'So the blood is flowing right along the surface of each little grape. That is where the exchange happens.'",
   "",
-  "Quick clinical hook — bronchi angles:",
-  "'Ok, here is a cool test fact.' (new bubble — pivot)",
+  "Quick clinical hook — bronchi angles (this is ONE response — pivot + facts + question):",
+  "'Ok, here is a cool test fact.' (new bubble — pivot) MUST continue in the SAME response with the following:",
   "'The right bronchus comes off at about 160 degrees — almost a straight shot down.'",
   "'The left comes off at about 95 degrees — more of a sharp turn.'",
-  "'So if someone aspirates, which lung is it more likely to end up in?' (standalone question)",
+  "'So if someone aspirates, which lung is it more likely to end up in?' (standalone question — THIS must be the last bubble)",
   "Guide to: the right lung. That is why ASPIRATION pneumonia is more common on the right side.",
   "",
   "STEP 3 — HOW DOES GAS EXCHANGE WORK (3-4 exchanges):",
@@ -585,7 +588,7 @@ export default function CoachLindsay() {
     return result;
   };
 
-  const ELEVEN_VOICE_ID = "gJx1vCzNCD1EQHT212Ls";
+  const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
 
   const speakElevenLabs = async (text) => {
