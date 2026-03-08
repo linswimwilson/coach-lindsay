@@ -195,6 +195,17 @@ const BASE_PROMPT = [
   "RIGHT: 'Which of the following causes wheezing?\\nA) Fluid in alveoli\\nB) Narrowed airways\\nC) No air movement\\nD) Thick secretions'",
   "",
   "================================================================",
+  "INITIAL ASSESSMENT RULES",
+  "================================================================",
+  "Every conversation starts with a quick assessment to see what the student already knows.",
+  "Fire assessment questions one at a time. Do NOT teach during the assessment — just note what they know and what they miss.",
+  "After the assessment, route the student:",
+  "- If they nail most/all: offer to skip to rapid fire + scenarios OR do a review.",
+  "- If they struggle: encourage them and start the full review from Step 1.",
+  "The student always has the choice. Never force a path.",
+  "Each conversation defines its own assessment questions in the teaching flow.",
+  "",
+  "================================================================",
   "CLOSING RULES",
   "================================================================",
   "Before wrapping up a conversation, ALWAYS ask if the student has questions about the topic FIRST.",
@@ -905,11 +916,42 @@ export default function CoachLindsay() {
 
         // Force-split topic pivots after sentence end
         if (chunk.length > 80) {
-          const pivotMatch = chunk.match(/^(.+?[.!?])\s+((?:Ok,|Ok |Now,|Now |So,|So |Alright,|Next |What about |How about |And (?:what|when|if|absent))\s*.+)/);
+          const pivotMatch = chunk.match(/^(.+?[.!?])\s+((?:Ok,|Ok |Now,|Now |So,|So |Alright,|Next |What about |How about |And (?:what|when|if|absent)|Ready to|Want to|Do you have any|Let us try|Here is|Here's|Picture this)[\s].+)/);
           if (pivotMatch && pivotMatch[1].trim().length > 10 && pivotMatch[2].trim().length > 10) {
             chunks.push(pivotMatch[1].trim());
             const rest = pivotMatch[2].trim();
             chunks.push(rest);
+            continue;
+          }
+        }
+
+        // Force-split "Nice work / Great job / etc" + next content
+        if (chunk.length > 60) {
+          const niceWorkMatch = chunk.match(/^(.+?(?:Nice work|Great work|Great job|Solid work|Really solid|Well done|Nailed it)[.!]+)\s+(.+)/i);
+          if (niceWorkMatch && niceWorkMatch[2].trim().length > 10) {
+            chunks.push(niceWorkMatch[1].trim());
+            chunks.push(niceWorkMatch[2].trim());
+            continue;
+          }
+        }
+
+        // Force-split scenario announcements: "Let's try a scenario" / "Next scenario" / "One more"
+        if (chunk.length > 60) {
+          const scenarioAnnounce = chunk.match(/^(.+?[.!?])\s+((?:Let us try|Let's try|Next scenario|One more|Ok, last one|Ok, next one)[.!]?\s*.+)/i);
+          if (scenarioAnnounce && scenarioAnnounce[1].trim().length > 5) {
+            chunks.push(scenarioAnnounce[1].trim());
+            chunks.push(scenarioAnnounce[2].trim());
+            continue;
+          }
+        }
+
+        // Force-split any bubble over 200 chars at sentence boundaries
+        if (chunk.length > 200) {
+          const sentences = chunk.match(/[^.!?]+[.!?]+/g);
+          if (sentences && sentences.length >= 3) {
+            const mid = Math.ceil(sentences.length / 2);
+            chunks.push(sentences.slice(0, mid).join("").trim());
+            chunks.push(sentences.slice(mid).join("").trim());
             continue;
           }
         }
