@@ -198,7 +198,13 @@ const BASE_PROMPT = [
   "INITIAL ASSESSMENT RULES",
   "================================================================",
   "Every conversation starts with a quick assessment to see what the student already knows.",
-  "Fire assessment questions one at a time. Do NOT teach during the assessment — just note what they know and what they miss.",
+  "Fire assessment questions one at a time. Keep it moving but do not rush.",
+  "PACING: Group 2-3 assessment questions per response. Ask them in one message, let the student answer all at once.",
+  "Example: 'Ok, first few: What is compliance? And what happens when it decreases? And what does surfactant do?'",
+  "This keeps things moving but gives the system breathing room between exchanges.",
+  "CORRECT answers: Quick affirm. 'Yes! Got those.'",
+  "WRONG answers: Give a quick correction. 'Close — normal O2 sat is actually 95 to 100. And surfactant reduces surface tension.'",
+  "Do NOT stop to teach or explain during the assessment. Just correct and move.",
   "After the assessment, route the student:",
   "- If they nail most/all: offer to skip to rapid fire + scenarios OR do a review.",
   "- If they struggle: encourage them and start the full review from Step 1.",
@@ -354,17 +360,16 @@ const CONVERSATION_PROMPT = [
   "'Welcome! Coach Lindsay here!' (bubble)",
   "'Let me see what you know about restrictive diseases. Quick fire.' (bubble)",
   "",
-  "Fire one at a time. Do NOT teach — just assess:",
-  "'Restrictive means the patient can not get air... IN or OUT?' → IN",
-  "'What happens to compliance in restrictive disease?' → decreases",
-  "'Name a condition where alveoli collapse.' → atelectasis",
-  "'What is pleural effusion?' → fluid outside the lung in pleural space",
-  "'What is pulmonary edema?' → fluid in the lungs",
-  "'What is a pneumothorax?' → air in the chest cavity",
-  "'Untreated restrictive disease can lead to what infection?' → pneumonia",
-  "'A patient with restrictive disease — what would they look like and complain about?' → labored breathing, can not take a deep breath, shallow rapid breathing, anxious, may be holding their chest if pleural issue",
-  "'What would you hear with a stethoscope on a patient with atelectasis?' → diminished or absent breath sounds over the affected area",
-  "'What about a patient with pulmonary edema?' → crackles/rales — fluid in the alveoli",
+  "Group 1: 'Restrictive means can not get air IN or OUT? What happens to compliance? And name a condition where alveoli collapse.' (standalone question)",
+  "→ IN. Compliance decreases. Atelectasis.",
+  "",
+  "Group 2: 'What is pleural effusion, what is pulmonary edema, and what is a pneumothorax?' (standalone question)",
+  "→ pleural effusion = fluid outside lung in pleural space. Pulmonary edema = fluid in the lungs. Pneumothorax = air in chest cavity.",
+  "",
+  "Group 3: 'Paint the picture — what does a restrictive disease patient look like and complain about? What would you hear with atelectasis vs pulmonary edema? And what can untreated restrictive disease lead to?' (standalone question)",
+  "→ labored, shallow rapid breathing, anxious, can not take a deep breath. Atelectasis = diminished/absent sounds. Pulmonary edema = crackles. Leads to pneumonia.",
+  "",
+  "Affirm or correct each group, then move to routing.",
   "",
   "ROUTING:",
   "If they nail most: 'You have a solid foundation! Want to jump to scenarios, or review?' (standalone question)",
@@ -594,8 +599,8 @@ const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
 
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome! Coach Lindsay here!", groupId: "init" },
-  { role: "assistant", content: "Let me see what you know about restrictive diseases. Quick fire.", groupId: "init" },
-  { role: "assistant", content: "Restrictive means the patient can not get air... IN or OUT?", groupId: "init" },
+  { role: "assistant", content: "Let me see what you know about restrictive diseases. Give me your best answers.", groupId: "init" },
+  { role: "assistant", content: "Restrictive means can not get air IN or OUT? What happens to compliance? And name a condition where alveoli collapse.", groupId: "init" },
 ];
 
 const PRIOR_CONTEXT = [];
@@ -801,6 +806,7 @@ export default function CoachLindsay() {
 
   const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
+  const lastApiCallRef = useRef(0);
 
   const speakElevenLabs = async (text) => {
     const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
@@ -877,6 +883,15 @@ export default function CoachLindsay() {
     setLoading(true);
     setExchangeCount(c => c + 1);
     try {
+      // Invisible pacing — ensure minimum 10 seconds between API calls to avoid rate limits
+      const now = Date.now();
+      const elapsed = now - lastApiCallRef.current;
+      const minGap = 10000; // 10 seconds
+      if (elapsed < minGap && lastApiCallRef.current > 0) {
+        await new Promise(r => setTimeout(r, minGap - elapsed));
+      }
+      lastApiCallRef.current = Date.now();
+      
       const conversationHistory = [...PRIOR_CONTEXT, ...messages, { role: "user", content: text }];
       const apiMessages = [];
       let lastRole = null;
@@ -884,20 +899,32 @@ export default function CoachLindsay() {
         if (m.role === lastRole && m.role === "assistant") { apiMessages[apiMessages.length - 1].content += " " + m.content; }
         else { apiMessages.push({ role: m.role, content: m.content }); lastRole = m.role; }
       }
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
       const anthropicKey = (() => { try { return import.meta.env.VITE_ANTHROPIC_API_KEY || ""; } catch(e) { return ""; } })();
       const headers = { "Content-Type": "application/json" };
       if (anthropicKey) { headers["x-api-key"] = anthropicKey; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      
+      // Retry loop for rate limits (429)
+      let response;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (response.status === 429 && attempt < 2) {
+          // Rate limited — wait and retry
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+          continue;
+        }
+        break;
+      }
       if (!response.ok) {
         const errBody = await response.text().catch(() => "");
+        if (response.status === 429) throw new Error("Give me a moment — too many messages too fast. Try again in a few seconds.");
         throw new Error(`API error: ${response.status} ${errBody.slice(0, 200)}`);
       }
       const data = await response.json();

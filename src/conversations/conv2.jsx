@@ -198,7 +198,13 @@ const BASE_PROMPT = [
   "INITIAL ASSESSMENT RULES",
   "================================================================",
   "Every conversation starts with a quick assessment to see what the student already knows.",
-  "Fire assessment questions one at a time. Do NOT teach during the assessment — just note what they know and what they miss.",
+  "Fire assessment questions one at a time. Keep it moving but do not rush.",
+  "PACING: Group 2-3 assessment questions per response. Ask them in one message, let the student answer all at once.",
+  "Example: 'Ok, first few: What is compliance? And what happens when it decreases? And what does surfactant do?'",
+  "This keeps things moving but gives the system breathing room between exchanges.",
+  "CORRECT answers: Quick affirm. 'Yes! Got those.'",
+  "WRONG answers: Give a quick correction. 'Close — normal O2 sat is actually 95 to 100. And surfactant reduces surface tension.'",
+  "Do NOT stop to teach or explain during the assessment. Just correct and move.",
   "After the assessment, route the student:",
   "- If they nail most/all: offer to skip to rapid fire + scenarios OR do a review.",
   "- If they struggle: encourage them and start the full review from Step 1.",
@@ -256,13 +262,16 @@ const CONVERSATION_PROMPT = [
   "'Welcome! Coach Lindsay here!' (bubble)",
   "'Before we dive in, let me see where you are with this material. Quick fire.' (bubble)",
   "",
-  "Fire these one at a time. Do NOT teach — just assess:",
-  "'What is compliance?' → ability to stretch and recoil",
-  "'What happens when compliance decreases?' → hard to stretch, hard to get air in",
-  "'What does surfactant do?' → reduces surface tension, prevents collapse",
-  "'What is it called when alveoli collapse?' → atelectasis",
-  "'Is inspiration active or passive?' → active",
-  "'What is the primary stimulus to breathe?' → CO2",
+  "Group 1: 'What is compliance, and what happens when it decreases?' (standalone question)",
+  "→ ability to stretch and recoil. Decreased = hard to stretch, hard to get air in.",
+  "",
+  "Group 2: 'What does surfactant do, and what is it called when alveoli collapse?' (standalone question)",
+  "→ reduces surface tension, prevents collapse. Collapse = atelectasis.",
+  "",
+  "Group 3: 'Is inspiration active or passive? And what is the primary stimulus to breathe?' (standalone question)",
+  "→ active. CO2 is the stimulus.",
+  "",
+  "Affirm or correct each group, then move to routing.",
   "",
   "ROUTING:",
   "If they nail most: 'You know this! Want to jump to rapid fire and scenarios, or review the content first?' (standalone question)",
@@ -418,8 +427,8 @@ const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
 
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome! Coach Lindsay here!", groupId: "init" },
-  { role: "assistant", content: "Before we dive in, let me see where you are with this material. Quick fire.", groupId: "init" },
-  { role: "assistant", content: "What is compliance?", groupId: "init" },
+  { role: "assistant", content: "Before we dive in, let me see where you are with this material. Give me your best answers.", groupId: "init" },
+  { role: "assistant", content: "What is compliance, and what happens when it decreases?", groupId: "init" },
 ];
 
 const PRIOR_CONTEXT = [];
@@ -625,6 +634,7 @@ export default function CoachLindsay() {
 
   const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
+  const lastApiCallRef = useRef(0);
 
   const speakElevenLabs = async (text) => {
     const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
@@ -701,6 +711,15 @@ export default function CoachLindsay() {
     setLoading(true);
     setExchangeCount(c => c + 1);
     try {
+      // Invisible pacing — ensure minimum 10 seconds between API calls to avoid rate limits
+      const now = Date.now();
+      const elapsed = now - lastApiCallRef.current;
+      const minGap = 10000; // 10 seconds
+      if (elapsed < minGap && lastApiCallRef.current > 0) {
+        await new Promise(r => setTimeout(r, minGap - elapsed));
+      }
+      lastApiCallRef.current = Date.now();
+      
       const conversationHistory = [...PRIOR_CONTEXT, ...messages, { role: "user", content: text }];
       const apiMessages = [];
       let lastRole = null;
@@ -708,20 +727,32 @@ export default function CoachLindsay() {
         if (m.role === lastRole && m.role === "assistant") { apiMessages[apiMessages.length - 1].content += " " + m.content; }
         else { apiMessages.push({ role: m.role, content: m.content }); lastRole = m.role; }
       }
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
       const anthropicKey = (() => { try { return import.meta.env.VITE_ANTHROPIC_API_KEY || ""; } catch(e) { return ""; } })();
       const headers = { "Content-Type": "application/json" };
       if (anthropicKey) { headers["x-api-key"] = anthropicKey; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      
+      // Retry loop for rate limits (429)
+      let response;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (response.status === 429 && attempt < 2) {
+          // Rate limited — wait and retry
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+          continue;
+        }
+        break;
+      }
       if (!response.ok) {
         const errBody = await response.text().catch(() => "");
+        if (response.status === 429) throw new Error("Give me a moment — too many messages too fast. Try again in a few seconds.");
         throw new Error(`API error: ${response.status} ${errBody.slice(0, 200)}`);
       }
       const data = await response.json();

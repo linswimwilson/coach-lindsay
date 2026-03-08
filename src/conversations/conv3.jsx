@@ -198,7 +198,13 @@ const BASE_PROMPT = [
   "INITIAL ASSESSMENT RULES",
   "================================================================",
   "Every conversation starts with a quick assessment to see what the student already knows.",
-  "Fire assessment questions one at a time. Do NOT teach during the assessment — just note what they know and what they miss.",
+  "Fire assessment questions one at a time. Keep it moving but do not rush.",
+  "PACING: Group 2-3 assessment questions per response. Ask them in one message, let the student answer all at once.",
+  "Example: 'Ok, first few: What is compliance? And what happens when it decreases? And what does surfactant do?'",
+  "This keeps things moving but gives the system breathing room between exchanges.",
+  "CORRECT answers: Quick affirm. 'Yes! Got those.'",
+  "WRONG answers: Give a quick correction. 'Close — normal O2 sat is actually 95 to 100. And surfactant reduces surface tension.'",
+  "Do NOT stop to teach or explain during the assessment. Just correct and move.",
   "After the assessment, route the student:",
   "- If they nail most/all: offer to skip to rapid fire + scenarios OR do a review.",
   "- If they struggle: encourage them and start the full review from Step 1.",
@@ -265,19 +271,18 @@ const CONVERSATION_PROMPT = [
   "STEP 0 — INITIAL ASSESSMENT",
   "================================================================",
   "'Welcome! Coach Lindsay here!' (bubble)",
-  "'Let me see what you remember. Quick fire — best answer for each.' (bubble)",
+  "'Let me see what you remember. Give me your best answers.' (bubble)",
   "",
-  "Fire one at a time. Do NOT teach — just assess:",
-  "'Normal O2 sat?' → 95-100",
-  "'Below what number is O2 sat dangerous?' → 90",
-  "'Normal PaO2?' → 75-100",
-  "'Normal PaCO2?' → 35-45",
-  "'Normal pH?' → 7.35-7.45",
-  "'CO2 goes up — pH goes which direction?' → down (acidosis)",
-  "'Normal tidal volume?' → 400-500 mL",
-  "'FiO2 on room air?' → 21 percent",
-  "'Name an abnormal breath sound.' → wheezes, crackles, rhonchi, or absent",
+  "Group 1: 'What is normal O2 sat, and below what number do you start worrying?' (standalone question)",
+  "→ 95-100, below 90",
   "",
+  "Group 2: 'Give me the normal ranges for PaO2, PaCO2, and pH.' (standalone question)",
+  "→ PaO2 75-100, PaCO2 35-45, pH 7.35-7.45",
+  "",
+  "Group 3: 'If CO2 goes up, what happens to pH? And what is normal tidal volume and FiO2 on room air?' (standalone question)",
+  "→ pH goes down (acidosis), TV 400-500 mL, FiO2 21%",
+  "",
+  "Affirm or correct each group, then move to routing.",
   "ROUTING:",
   "If they nail most: 'These numbers are locked in! Want to jump to scenarios, or review and drill them again?' (standalone question)",
   "If they want practice: skip to STEP 11 (SCENARIOS).",
@@ -561,8 +566,8 @@ const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
 
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome! Coach Lindsay here!", groupId: "init" },
-  { role: "assistant", content: "Let me see what you remember. Quick fire — best answer for each.", groupId: "init" },
-  { role: "assistant", content: "Normal O2 sat?", groupId: "init" },
+  { role: "assistant", content: "Let me see what you remember. Give me your best answers.", groupId: "init" },
+  { role: "assistant", content: "What is normal O2 sat, and below what number do you start worrying?", groupId: "init" },
 ];
 
 const PRIOR_CONTEXT = [];
@@ -768,6 +773,7 @@ export default function CoachLindsay() {
 
   const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
+  const lastApiCallRef = useRef(0);
 
   const speakElevenLabs = async (text) => {
     const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
@@ -844,6 +850,15 @@ export default function CoachLindsay() {
     setLoading(true);
     setExchangeCount(c => c + 1);
     try {
+      // Invisible pacing — ensure minimum 10 seconds between API calls to avoid rate limits
+      const now = Date.now();
+      const elapsed = now - lastApiCallRef.current;
+      const minGap = 10000; // 10 seconds
+      if (elapsed < minGap && lastApiCallRef.current > 0) {
+        await new Promise(r => setTimeout(r, minGap - elapsed));
+      }
+      lastApiCallRef.current = Date.now();
+      
       const conversationHistory = [...PRIOR_CONTEXT, ...messages, { role: "user", content: text }];
       const apiMessages = [];
       let lastRole = null;
@@ -851,20 +866,32 @@ export default function CoachLindsay() {
         if (m.role === lastRole && m.role === "assistant") { apiMessages[apiMessages.length - 1].content += " " + m.content; }
         else { apiMessages.push({ role: m.role, content: m.content }); lastRole = m.role; }
       }
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
       const anthropicKey = (() => { try { return import.meta.env.VITE_ANTHROPIC_API_KEY || ""; } catch(e) { return ""; } })();
       const headers = { "Content-Type": "application/json" };
       if (anthropicKey) { headers["x-api-key"] = anthropicKey; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      
+      // Retry loop for rate limits (429)
+      let response;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (response.status === 429 && attempt < 2) {
+          // Rate limited — wait and retry
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+          continue;
+        }
+        break;
+      }
       if (!response.ok) {
         const errBody = await response.text().catch(() => "");
+        if (response.status === 429) throw new Error("Give me a moment — too many messages too fast. Try again in a few seconds.");
         throw new Error(`API error: ${response.status} ${errBody.slice(0, 200)}`);
       }
       const data = await response.json();

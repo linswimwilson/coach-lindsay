@@ -198,7 +198,13 @@ const BASE_PROMPT = [
   "INITIAL ASSESSMENT RULES",
   "================================================================",
   "Every conversation starts with a quick assessment to see what the student already knows.",
-  "Fire assessment questions one at a time. Do NOT teach during the assessment — just note what they know and what they miss.",
+  "Fire assessment questions one at a time. Keep it moving but do not rush.",
+  "PACING: Group 2-3 assessment questions per response. Ask them in one message, let the student answer all at once.",
+  "Example: 'Ok, first few: What is compliance? And what happens when it decreases? And what does surfactant do?'",
+  "This keeps things moving but gives the system breathing room between exchanges.",
+  "CORRECT answers: Quick affirm. 'Yes! Got those.'",
+  "WRONG answers: Give a quick correction. 'Close — normal O2 sat is actually 95 to 100. And surfactant reduces surface tension.'",
+  "Do NOT stop to teach or explain during the assessment. Just correct and move.",
   "After the assessment, route the student:",
   "- If they nail most/all: offer to skip to rapid fire + scenarios OR do a review.",
   "- If they struggle: encourage them and start the full review from Step 1.",
@@ -316,17 +322,16 @@ const CONVERSATION_PROMPT = [
   "'Welcome! Coach Lindsay here!' (bubble)",
   "'Let me see what you know about emphysema. Quick fire.' (bubble)",
   "",
-  "Fire one at a time. Do NOT teach — just assess:",
-  "'Is emphysema obstructive or restrictive?' → obstructive",
-  "'What is the nickname for an emphysema patient?' → Pink Puffer",
-  "'Can air get IN or can air not get OUT?' → can not get out",
-  "'What happens to the alveoli in emphysema?' → destroyed, lose recoil, hyperinflated",
-  "'What drives breathing in emphysema — CO2 or O2?' → O2 (hypoxic drive)",
-  "'What is pursed lip breathing for?' → keeps airways open longer to get CO2 out",
-  "'Target SpO2 for a COPD patient?' → 91-94%",
-  "'Describe what an emphysema patient looks like when they walk into your clinic.' → thin/skinny, barrel chest, pink skin, pursed lip breathing, using accessory muscles",
-  "'What would they complain about?' → shortness of breath, can not catch their breath, hard to exhale, fatigue",
-  "'What would you hear with a stethoscope?' → diminished breath sounds, possible wheezes, decreased air movement",
+  "Group 1: 'Is emphysema obstructive or restrictive? What is the nickname? And can air not get IN or not get OUT?' (standalone question)",
+  "→ obstructive. Pink Puffer. Can not get air OUT.",
+  "",
+  "Group 2: 'What happens to the alveoli, what drives breathing, and what is pursed lip breathing for?' (standalone question)",
+  "→ destroyed/hyperinflated/lose recoil. O2 drives breathing (hypoxic drive). Pursed lips keep airways open to get CO2 out.",
+  "",
+  "Group 3: 'Paint me the picture — what does an emphysema patient look like, sound like, and complain about? And what is target SpO2?' (standalone question)",
+  "→ thin, barrel chest, pink skin, pursed lips, accessory muscles. Diminished breath sounds, wheezes. SOB, hard to exhale, fatigue. Target 91-94%.",
+  "",
+  "Affirm or correct each group, then move to routing.",
   "",
   "ROUTING:",
   "If they nail most: 'You have a strong handle on this! Want to jump to scenarios and practice, or review the content?' (standalone question)",
@@ -529,8 +534,8 @@ const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
 
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome! Coach Lindsay here!", groupId: "init" },
-  { role: "assistant", content: "Let me see what you know about emphysema. Quick fire.", groupId: "init" },
-  { role: "assistant", content: "Is emphysema obstructive or restrictive?", groupId: "init" },
+  { role: "assistant", content: "Let me see what you know about emphysema. Give me your best answers.", groupId: "init" },
+  { role: "assistant", content: "Is emphysema obstructive or restrictive? What is the nickname? And can air not get IN or not get OUT?", groupId: "init" },
 ];
 
 const PRIOR_CONTEXT = [];
@@ -736,6 +741,7 @@ export default function CoachLindsay() {
 
   const ELEVEN_VOICE_ID = "Bqt3hjCEHTi7ZU66Aqcl";
   const currentAudioRef = useRef(null);
+  const lastApiCallRef = useRef(0);
 
   const speakElevenLabs = async (text) => {
     const elevenKey = (() => { try { return import.meta.env.VITE_ELEVEN_API_KEY || ""; } catch(e) { return ""; } })();
@@ -812,6 +818,15 @@ export default function CoachLindsay() {
     setLoading(true);
     setExchangeCount(c => c + 1);
     try {
+      // Invisible pacing — ensure minimum 10 seconds between API calls to avoid rate limits
+      const now = Date.now();
+      const elapsed = now - lastApiCallRef.current;
+      const minGap = 10000; // 10 seconds
+      if (elapsed < minGap && lastApiCallRef.current > 0) {
+        await new Promise(r => setTimeout(r, minGap - elapsed));
+      }
+      lastApiCallRef.current = Date.now();
+      
       const conversationHistory = [...PRIOR_CONTEXT, ...messages, { role: "user", content: text }];
       const apiMessages = [];
       let lastRole = null;
@@ -819,20 +834,32 @@ export default function CoachLindsay() {
         if (m.role === lastRole && m.role === "assistant") { apiMessages[apiMessages.length - 1].content += " " + m.content; }
         else { apiMessages.push({ role: m.role, content: m.content }); lastRole = m.role; }
       }
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
       const anthropicKey = (() => { try { return import.meta.env.VITE_ANTHROPIC_API_KEY || ""; } catch(e) { return ""; } })();
       const headers = { "Content-Type": "application/json" };
       if (anthropicKey) { headers["x-api-key"] = anthropicKey; headers["anthropic-version"] = "2023-06-01"; headers["anthropic-dangerous-direct-browser-access"] = "true"; }
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      
+      // Retry loop for rate limits (429)
+      let response;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+        response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, system: SYSTEM_PROMPT, messages: apiMessages }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (response.status === 429 && attempt < 2) {
+          // Rate limited — wait and retry
+          await new Promise(r => setTimeout(r, (attempt + 1) * 5000));
+          continue;
+        }
+        break;
+      }
       if (!response.ok) {
         const errBody = await response.text().catch(() => "");
+        if (response.status === 429) throw new Error("Give me a moment — too many messages too fast. Try again in a few seconds.");
         throw new Error(`API error: ${response.status} ${errBody.slice(0, 200)}`);
       }
       const data = await response.json();
