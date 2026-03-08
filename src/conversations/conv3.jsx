@@ -612,10 +612,9 @@ export default function CoachLindsay() {
       r.onresult = (e) => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
         setInput(transcript);
-        // Only auto-send when we get a final result
+        // Do NOT auto-send. Let the student see what was heard and press Send.
         if (e.results[e.results.length - 1].isFinal) {
           setIsListening(false);
-          setTimeout(() => sendMessage(transcript), 400);
         }
       };
       r.onend = () => {

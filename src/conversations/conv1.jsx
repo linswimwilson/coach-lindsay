@@ -245,32 +245,13 @@ const CONVERSATION_PROMPT = [
   "Accept answers like: gas exchange, to exchange gases, get O2 in and CO2 out, oxygenate the blood, breathing.",
   "If they say 'to breathe' or 'get oxygen': guide them to the bigger picture — GAS EXCHANGE.",
   "Affirm: 'Exactly! GAS EXCHANGE. That is what everything we talk about comes back to.'",
-  "ONCE YOU SAY 'GAS EXCHANGE' AND THE STUDENT CONFIRMS, STEP 1 IS PERMANENTLY CLOSED. NEVER RETURN TO IT.",
   "",
-  "STEP 2 — THE AIR PATHWAY — walk through the full anatomy (3-5 exchanges):",
-  "THIS STEP IS PURE ANATOMY. You are asking the student to name each structure air passes through.",
-  "EVERY answer in this step will be an anatomical structure name. THAT IS THE CORRECT TYPE OF ANSWER.",
-  "",
+  "STEP 2 — THE AIR PATHWAY (3-5 exchanges):",
   "'So, air comes in through your nose or mouth.' (new bubble — pivot) 'Ok, after the nose and the mouth — anatomically, where does the air go from there?' (standalone question)",
-  "",
-  "The correct pathway is: nose/mouth → PHARYNX → LARYNX → TRACHEA → BRONCHI → bronchioles → ALVEOLI.",
-  "",
-  "STEP 2 RULES — READ THESE CAREFULLY:",
-  "- If student says 'pharynx' → CORRECT. Affirm. Ask 'And then where?'",
-  "- If student says 'larynx' → CORRECT. Affirm. Ask 'And then where?'",
-  "- If student says 'trachea' → CORRECT. Affirm. Ask 'And then where?'",
-  "- If student says 'bronchi' → CORRECT. Affirm. Ask 'And then where?'",
-  "- If student says 'bronchioles' → CORRECT. Affirm. Ask 'And then where?'",
-  "- If student says 'alveoli' → CORRECT. Move to the 'where does gas exchange happen' question.",
-  "- If student skips a step, gently redirect: 'Close! There is one in between.'",
-  "",
-  "ABSOLUTE PROHIBITION: During Step 2, NEVER say 'I am asking about PURPOSE' or 'What is the lungs main job.' STEP 1 IS OVER. You are in ANATOMY now. The student is correctly answering anatomy questions. Accept anatomy answers.",
-  "",
-  "THIS IS THE EXACT ERROR PATTERN THAT KEEPS HAPPENING — DO NOT DO THIS:",
-  "Student says 'larynx' → AI says 'Not quite! I am asking about PURPOSE. What is the lungs main job?'",
-  "THIS IS WRONG. The student correctly said 'larynx.' The AI looped back to Step 1. DO NOT DO THIS.",
-  "",
-  "Once they reach alveoli: 'Now, gas exchange does not happen in the trachea. It does not happen in the bronchi. Where is the ONLY place it happens?' (standalone question)",
+  "Guide them through the pathway: nose/mouth → PHARYNX → LARYNX → TRACHEA → BRONCHI → bronchioles → ALVEOLI.",
+  "Walk them through it one structure at a time. After each correct answer, affirm and ask 'And then where?'",
+  "Do not just list it — let them build it. If they skip steps, ask what comes next.",
+  "'Now, gas exchange does not happen in the trachea. It does not happen in the bronchi. Where is the ONLY place it happens?' (standalone question)",
   "Guide to: ALVEOLI.",
   "'Say that back to me: GAS EXCHANGE happens ONLY in the ALVEOLI.'",
   "",
@@ -494,10 +475,9 @@ export default function CoachLindsay() {
       r.onresult = (e) => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
         setInput(transcript);
-        // Only auto-send when we get a final result
+        // Do NOT auto-send. Let the student see what was heard and press Send.
         if (e.results[e.results.length - 1].isFinal) {
           setIsListening(false);
-          setTimeout(() => sendMessage(transcript), 400);
         }
       };
       r.onend = () => {
