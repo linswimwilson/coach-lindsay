@@ -902,84 +902,82 @@ export default function CoachLindsay() {
       // POST-PROCESSOR — Force-splits that catch what the AI misses.
       // ================================================================
       const rawChunks = fullText.split("|||").map(c => c.trim()).filter(c => c.length > 0);
-      const chunks = [];
-      for (const chunk of rawChunks) {
-        // Force-split affirmation + new question (rapid fire pattern)
+      // RECURSIVE SPLITTER — keeps splitting until no more splits are needed
+      const splitChunk = (chunk) => {
+        // Force-split affirmation + new question
         if (chunk.length > 40) {
           const affirmQMatch = chunk.match(/^(.+?[.!])\s+((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|If|In|A patient|A \d|True|False|The |When|Select).+\?.*)/);
           if (affirmQMatch && affirmQMatch[1].trim().length > 5 && affirmQMatch[2].trim().length > 10) {
-            chunks.push(affirmQMatch[1].trim());
-            chunks.push(affirmQMatch[2].trim());
-            continue;
+            return [...splitChunk(affirmQMatch[1].trim()), ...splitChunk(affirmQMatch[2].trim())];
           }
         }
 
-        // Force-split topic pivots after sentence end
-        if (chunk.length > 80) {
+        // Force-split topic pivots
+        if (chunk.length > 60) {
           const pivotMatch = chunk.match(/^(.+?[.!?])\s+((?:Ok,|Ok |Now,|Now |So,|So |Alright,|Next |What about |How about |And (?:what|when|if|absent)|Ready to|Want to|Do you have any|Let us try|Here is|Here's|Picture this)[\s].+)/);
           if (pivotMatch && pivotMatch[1].trim().length > 10 && pivotMatch[2].trim().length > 10) {
-            chunks.push(pivotMatch[1].trim());
-            const rest = pivotMatch[2].trim();
-            chunks.push(rest);
-            continue;
+            return [...splitChunk(pivotMatch[1].trim()), ...splitChunk(pivotMatch[2].trim())];
           }
         }
 
-        // Force-split "Nice work / Great job / etc" + next content
+        // Force-split "Nice work" etc
         if (chunk.length > 60) {
           const niceWorkMatch = chunk.match(/^(.+?(?:Nice work|Great work|Great job|Solid work|Really solid|Well done|Nailed it)[.!]+)\s+(.+)/i);
           if (niceWorkMatch && niceWorkMatch[2].trim().length > 10) {
-            chunks.push(niceWorkMatch[1].trim());
-            chunks.push(niceWorkMatch[2].trim());
-            continue;
+            return [...splitChunk(niceWorkMatch[1].trim()), ...splitChunk(niceWorkMatch[2].trim())];
           }
         }
 
-        // Force-split scenario announcements: "Let's try a scenario" / "Next scenario" / "One more"
+        // Force-split scenario announcements
         if (chunk.length > 60) {
           const scenarioAnnounce = chunk.match(/^(.+?[.!?])\s+((?:Let us try|Let's try|Next scenario|One more|Ok, last one|Ok, next one)[.!]?\s*.+)/i);
           if (scenarioAnnounce && scenarioAnnounce[1].trim().length > 5) {
-            chunks.push(scenarioAnnounce[1].trim());
-            chunks.push(scenarioAnnounce[2].trim());
-            continue;
+            return [...splitChunk(scenarioAnnounce[1].trim()), ...splitChunk(scenarioAnnounce[2].trim())];
           }
         }
 
-        // Force-split any bubble over 200 chars at sentence boundaries
-        if (chunk.length > 200) {
-          const sentences = chunk.match(/[^.!?]+[.!?]+/g);
-          if (sentences && sentences.length >= 3) {
-            const mid = Math.ceil(sentences.length / 2);
-            chunks.push(sentences.slice(0, mid).join("").trim());
-            chunks.push(sentences.slice(mid).join("").trim());
-            continue;
-          }
-        }
-
-        // Force-split scenario patient descriptions out of combined bubbles
+        // Force-split scenario patient descriptions
         const scenarioMatch = chunk.match(/(.*?[.!]\s*)(A \d{1,3}[\s-]year[\s-]old.+)/i);
         if (scenarioMatch && scenarioMatch[1].trim().length > 0) {
-          chunks.push(scenarioMatch[1].trim());
+          const parts = [...splitChunk(scenarioMatch[1].trim())];
           const scenarioText = scenarioMatch[2].trim();
           const qMatch = scenarioText.match(/(.*?[.]\s*)((?:What|Which|How|Why|Where|Who|Is|Are|Do|Does|Can|Name|Identify|Pick|Find|Look)\s.+)/i);
           if (qMatch && qMatch[1].trim().length > 10) {
-            chunks.push(qMatch[1].trim());
-            chunks.push(qMatch[2].trim());
-          } else { chunks.push(scenarioText); }
-          continue;
+            parts.push(qMatch[1].trim());
+            parts.push(qMatch[2].trim());
+          } else { parts.push(scenarioText); }
+          return parts;
         }
 
-        // MC options stay in the same bubble — formatted with newlines
-        // Safety net: if MC trigger phrase found without options, convert to free response
+        // Force-split any bubble over 150 chars at sentence boundaries
+        if (chunk.length > 150) {
+          const sentences = chunk.match(/[^.!?]+[.!?]+/g);
+          if (sentences && sentences.length >= 3) {
+            const mid = Math.ceil(sentences.length / 2);
+            return [...splitChunk(sentences.slice(0, mid).join("").trim()), ...splitChunk(sentences.slice(mid).join("").trim())];
+          }
+        }
+
+        return [chunk];
+      };
+
+      const chunks = [];
+      for (const chunk of rawChunks) {
+        // MC options — keep together, just fix if missing options
         const mcTriggers = /which of the following|which are true|which is true|which of these|what are true|what is true|select all that apply|all of the following except|all of the following/i;
         if (mcTriggers.test(chunk) && !/[A-E]\)/.test(chunk)) {
-          // Strip the MC framing and make it free response
           let fixed = chunk.replace(/which of the following/gi, "what").replace(/select all that apply[.:]?\s*/gi, "").replace(/all of the following .* except/gi, "what does NOT");
           chunks.push(fixed);
           continue;
         }
+        // MC with options — keep as one bubble
+        if (/[A-E]\)/.test(chunk) && (chunk.match(/[A-E]\)/g) || []).length >= 2) {
+          chunks.push(chunk);
+          continue;
+        }
         
-        chunks.push(chunk);
+        // Everything else — run through recursive splitter
+        chunks.push(...splitChunk(chunk));
       }
       
       // SECOND PASS: Fix any MC questions that lost their options during splitting
