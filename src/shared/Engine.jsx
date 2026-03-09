@@ -24,6 +24,7 @@ function TypingIndicator() {
 export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIAL_MESSAGES, PRIOR_CONTEXT = [] }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const inputRef = useRef("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
@@ -93,12 +94,19 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
       r.onresult = (e) => {
         const transcript = Array.from(e.results).map(r => r[0].transcript).join("");
         setInput(transcript);
+        inputRef.current = transcript;
         // Reset silence timer every time we hear something — give student time to think
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = setTimeout(() => {
           // 4 seconds of silence after last speech — stop listening
           if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch(e) {} }
           setIsListening(false);
+          // Auto-send after silence if there is transcribed text
+          if (inputRef.current.trim()) {
+            setTimeout(() => {
+              if (inputRef.current.trim()) sendMessage(inputRef.current.trim());
+            }, 300);
+          }
         }, 4000);
       };
       r.onend = () => {
@@ -190,7 +198,7 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     result = result.replace(/bronchioles/gi, "BRON-kee-olz");
     result = result.replace(/diaphragm/gi, "DYE-uh-fram");
     result = result.replace(/atelectasis/gi, "at-uh-LEK-tuh-sis");
-    result = result.replace(/surfactant/gi, "sur-FAK-tant");
+    result = result.replace(/surfactants?/gi, (m) => m.endsWith("s") ? "sur-FAK-tants" : "sur-FAK-tant");
     result = result.replace(/chemoreceptors/gi, "KEE-mo-ree-SEP-tors");
     result = result.replace(/orthopnea/gi, "or-THOP-nee-uh");
     result = result.replace(/dyspnea/gi, "DISP-nee-uh");
@@ -296,21 +304,24 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     isSpeakingRef.current = true;
     setIsSpeaking(true);
     let bubbleIndex = 0;
-    const revealNext = (idx) => {
+    const revealBubble = (idx) => {
       if (groupId && idx < texts.length) {
-        setMessages(prev => prev.map(m =>
-          m.groupId === groupId && prev.filter(x => x.groupId === groupId).indexOf(m) === idx
-            ? { ...m, hidden: false, animDelay: 0 } : m
-        ));
+        setMessages(prev => {
+          const group = prev.filter(x => x.groupId === groupId);
+          return prev.map(m =>
+            m.groupId === groupId && group.indexOf(m) === idx
+              ? { ...m, hidden: false, animDelay: 0 } : m
+          );
+        });
       }
     };
     const speakNext = async () => {
       if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
       const text = speakQueueRef.current.shift();
-      // Reveal the NEXT bubble just before we start speaking current one
-      if (bubbleIndex + 1 < texts.length) revealNext(bubbleIndex + 1);
-      bubbleIndex++;
+      // Speak current bubble, THEN reveal the next one after speaking completes
       try { await speakElevenLabs(text); } catch(e) {}
+      bubbleIndex++;
+      if (bubbleIndex < texts.length) revealBubble(bubbleIndex);
       setTimeout(speakNext, 350);
     };
     speakNext();
@@ -613,7 +624,7 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
         <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
           <button onClick={toggleVoiceMode} disabled={!recognitionRef.current} title={!recognitionRef.current ? "Speech not available in this browser" : voiceMode ? "Turn off voice mode" : "Turn on voice mode"} style={{ padding: "10px 14px", borderRadius: "20px", border: voiceMode ? (isListening ? "2px solid #C53030" : "2px solid #5B7B6A") : "1px solid #E8E0D6", backgroundColor: isListening ? "#FFF5F5" : voiceMode ? "#F0F7F3" : "#FFF", cursor: recognitionRef.current ? "pointer" : "default", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", animation: isListening ? "pulse 1.5s ease-in-out infinite" : "none", opacity: recognitionRef.current ? 1 : 0.3, display: "flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}>{isListening ? "\uD83D\uDD34 Listening..." : voiceMode ? "\uD83C\uDF99\uFE0F Voice On" : "\uD83C\uDF99\uFE0F Voice"}</button>
           <div style={{ flex: 1, position: "relative" }}>
-            <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={isListening ? "Listening..." : voiceMode ? "Listening for you... or type here" : "Type or tap Voice..."} disabled={loading || isListening} rows={1} style={{ width: "100%", padding: "10px 14px", borderRadius: "20px", border: "1px solid #E8E0D6", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", resize: "none", outline: "none", backgroundColor: loading ? "#F5F5F5" : "#FFF", boxSizing: "border-box" }} />
+            <textarea value={input} onChange={(e) => { setInput(e.target.value); inputRef.current = e.target.value; }} onKeyDown={handleKeyDown} placeholder={isListening ? "Listening..." : voiceMode ? "Listening for you... or type here" : "Type or tap Voice..."} disabled={loading || isListening} rows={1} style={{ width: "100%", padding: "10px 14px", borderRadius: "20px", border: "1px solid #E8E0D6", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", resize: "none", outline: "none", backgroundColor: loading ? "#F5F5F5" : "#FFF", boxSizing: "border-box" }} />
           </div>
           <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{ padding: "10px 20px", borderRadius: "20px", border: "none", backgroundColor: loading || !input.trim() ? "#D4C5B0" : "#8B7355", color: "#FFF", fontSize: "15px", fontFamily: "'Source Serif 4', Georgia, serif", cursor: loading || !input.trim() ? "default" : "pointer", fontWeight: 600 }}>Send</button>
         </div>
