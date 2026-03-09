@@ -419,6 +419,9 @@ const CONVERSATION_PROMPT = [
 ];
 
 
+// Assemble full system prompt
+const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
+
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome to the last one.", groupId: "init" },
   { role: "assistant", content: "You have put in the work — gas exchange, the numbers, infections, asthma, COPD, restrictive diseases.", groupId: "init" },

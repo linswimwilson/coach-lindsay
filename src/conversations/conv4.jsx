@@ -392,6 +392,9 @@ const CONVERSATION_PROMPT = [
 ];
 
 
+// Assemble full system prompt
+const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
+
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome back! Coach Lindsay here.", groupId: "init" },
   { role: "assistant", content: "Before I even tell you the topic — think about the last time you had a cold.", groupId: "init" },

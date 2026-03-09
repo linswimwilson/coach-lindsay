@@ -404,6 +404,9 @@ const CONVERSATION_PROMPT = [
 ];
 
 
+// Assemble full system prompt
+const SYSTEM_PROMPT = BASE_PROMPT + "\n\n" + CONVERSATION_PROMPT;
+
 const INITIAL_MESSAGES = [
   { role: "assistant", content: "Welcome back! Coach Lindsay here.", groupId: "init" },
   { role: "assistant", content: "Picture this — you are trying to breathe through a coffee stir straw.", groupId: "init" },
