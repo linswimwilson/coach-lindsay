@@ -57,9 +57,10 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
   useEffect(() => {
     if (messages.length === 0) {
       const groupId = "init";
-      const initBubbles = INITIAL_MESSAGES.map((m, i) => ({ ...m, groupId, showAvatar: i === 0, isLastInGroup: i === INITIAL_MESSAGES.length - 1, animDelay: i * 1500 }));
+      const voiceOnInit = voiceEnabledRef.current;
+      const initBubbles = INITIAL_MESSAGES.map((m, i) => ({ ...m, groupId, showAvatar: i === 0, isLastInGroup: i === INITIAL_MESSAGES.length - 1, hidden: voiceOnInit && i > 0, animDelay: voiceOnInit ? 0 : i * 800 }));
       setMessages(initBubbles);
-      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(INITIAL_MESSAGES.map(m => m.content)), 500);
+      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(INITIAL_MESSAGES.map(m => m.content), groupId), 500);
     }
   }, []);
 
@@ -176,6 +177,7 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     // ElevenLabs is good at real words but needs help with medical terms
     // Use hyphenated natural pronunciation guides, NOT spaced-out phonetics
     // Anatomy & general
+    result = result.replace(/ventilation/gi, "ven-tih-LAY-shun");
     result = result.replace(/alveoli/gi, "al-VEE-oh-lye");
     result = result.replace(/alveolar/gi, "al-VEE-oh-ler");
     result = result.replace(/alveolus/gi, "al-VEE-oh-luss");
@@ -286,18 +288,30 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     }
   };
 
-  const speakBubbles = useCallback((texts) => {
+  const speakBubbles = useCallback((texts, groupId) => {
     if (!voiceEnabledRef.current) return;
     if (currentAudioRef.current) { currentAudioRef.current.pause(); currentAudioRef.current = null; }
     window.speechSynthesis?.cancel();
     speakQueueRef.current = [...texts];
     isSpeakingRef.current = true;
     setIsSpeaking(true);
+    let bubbleIndex = 0;
+    const revealNext = (idx) => {
+      if (groupId && idx < texts.length) {
+        setMessages(prev => prev.map(m =>
+          m.groupId === groupId && prev.filter(x => x.groupId === groupId).indexOf(m) === idx
+            ? { ...m, hidden: false, animDelay: 0 } : m
+        ));
+      }
+    };
     const speakNext = async () => {
       if (speakQueueRef.current.length === 0) { isSpeakingRef.current = false; setIsSpeaking(false); if (voiceModeRef.current) setTimeout(() => startListening(), 600); return; }
       const text = speakQueueRef.current.shift();
+      // Reveal the NEXT bubble just before we start speaking current one
+      if (bubbleIndex + 1 < texts.length) revealNext(bubbleIndex + 1);
+      bubbleIndex++;
       try { await speakElevenLabs(text); } catch(e) {}
-      setTimeout(speakNext, 250);
+      setTimeout(speakNext, 350);
     };
     speakNext();
   }, [selectedVoice, voiceSpeed]);
@@ -530,12 +544,20 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
       }
       
       const groupId = Date.now().toString();
-      const newBubbles = finalChunks.map((chunk, i) => ({ role: "assistant", content: chunk, groupId, showAvatar: i === 0, isLastInGroup: i === finalChunks.length - 1, animDelay: i * 1500 }));
+      const voiceOn = voiceEnabledRef.current;
+      // When voice is on: only show first bubble immediately, rest revealed as voice speaks them
+      // When voice is off: stagger appearance at 800ms each
+      const newBubbles = finalChunks.map((chunk, i) => ({
+        role: "assistant", content: chunk, groupId,
+        showAvatar: i === 0, isLastInGroup: i === finalChunks.length - 1,
+        hidden: voiceOn && i > 0,
+        animDelay: voiceOn ? 0 : i * 800,
+      }));
       setMessages(prev => [...prev, ...newBubbles]);
-      if (voiceEnabledRef.current) setTimeout(() => speakBubbles(finalChunks), 300);
-      else if (voiceModeRef.current) {
-        // Voice mode on but TTS off — auto-listen after bubbles animate
-        setTimeout(() => startListening(), finalChunks.length * 1500 + 500);
+      if (voiceOn) {
+        setTimeout(() => speakBubbles(finalChunks, groupId), 400);
+      } else if (voiceModeRef.current) {
+        setTimeout(() => startListening(), finalChunks.length * 800 + 500);
       }
     } catch (err) {
       console.error("Error:", err);
@@ -569,7 +591,7 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
 
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: "2px" }}>
         {messages.map((msg, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", marginTop: msg.role === "assistant" && msg.showAvatar ? "16px" : "2px", animation: msg.animDelay ? `fadeIn 0.3s ease ${msg.animDelay}ms both` : "fadeIn 0.3s ease both" }}>
+          <div key={i} style={{ display: msg.hidden ? "none" : "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", marginTop: msg.role === "assistant" && msg.showAvatar ? "16px" : "2px", animation: msg.animDelay ? `fadeIn 0.3s ease ${msg.animDelay}ms both` : "fadeIn 0.3s ease both" }}>
             {msg.role === "assistant" && <div style={{ width: "32px", marginRight: "8px" }}>{msg.showAvatar && <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "linear-gradient(135deg, #8B7355 0%, #A08B6E 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFF", fontSize: "14px", fontWeight: 600 }}>CL</div>}</div>}
             <div style={{ maxWidth: "80%", padding: "10px 16px", borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", backgroundColor: msg.role === "user" ? "#8B7355" : "#FFF", color: msg.role === "user" ? "#FFF" : "#2C2420", fontSize: "15px", lineHeight: "1.5", border: msg.role === "user" ? "none" : "1px solid #E8E0D6", boxShadow: msg.role === "user" ? "none" : "0 1px 2px rgba(0,0,0,0.04)" }}>
               {msg.role === "assistant" ? formatText(msg.content) : msg.content}
