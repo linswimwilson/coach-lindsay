@@ -117,7 +117,8 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         if (e.error === "no-speech" && voiceModeRef.current) {
           setIsListening(false);
-          setTimeout(() => startListening(), 500);
+          // Only restart if not speaking — prevents mic picking up TTS
+          if (!isSpeakingRef.current) setTimeout(() => startListening(), 500);
         } else {
           setIsListening(false);
         }
@@ -128,9 +129,11 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
 
   const startListening = () => {
     if (!recognitionRef.current || !voiceModeRef.current) return;
+    // Never start mic while TTS is playing — mic picks up Coach Lindsay's voice and sends it as student input
+    if (isSpeakingRef.current) return;
     try {
-      stopSpeaking();
       setInput("");
+      inputRef.current = "";
       recognitionRef.current.start();
       setIsListening(true);
     } catch (e) {
@@ -186,6 +189,11 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     // Use hyphenated natural pronunciation guides, NOT spaced-out phonetics
     // Anatomy & general
     result = result.replace(/ventilation/gi, "ven-tih-LAY-shun");
+    result = result.replace(/acidosis/gi, "ass-ih-DOH-sis");
+    result = result.replace(/alkalosis/gi, "al-kah-LOH-sis");
+    result = result.replace(/hypercapnia/gi, "hy-per-KAP-nee-ah");
+    result = result.replace(/hypoxemia/gi, "hy-pok-SEE-mee-ah");
+    result = result.replace(/atelectasis/gi, "at-eh-LEK-tah-sis");
     result = result.replace(/alveoli/gi, "al-VEE-oh-lye");
     result = result.replace(/alveolar/gi, "al-VEE-oh-ler");
     result = result.replace(/alveolus/gi, "al-VEE-oh-luss");
@@ -220,6 +228,11 @@ export default function CoachLindsay({ CONVERSATION_TITLE, SYSTEM_PROMPT, INITIA
     result = result.replace(/pleural/gi, "PLUR-ul");
     result = result.replace(/perfusion/gi, "per-FEW-zhun");
     result = result.replace(/ventilation/gi, "ven-tih-LAY-shun");
+    result = result.replace(/acidosis/gi, "ass-ih-DOH-sis");
+    result = result.replace(/alkalosis/gi, "al-kah-LOH-sis");
+    result = result.replace(/hypercapnia/gi, "hy-per-KAP-nee-ah");
+    result = result.replace(/hypoxemia/gi, "hy-pok-SEE-mee-ah");
+    result = result.replace(/atelectasis/gi, "at-eh-LEK-tah-sis");
     result = result.replace(/acidosis/gi, "ass-ih-DOE-sis");
     result = result.replace(/alkalosis/gi, "al-kuh-LOE-sis");
     // Lab values & abbreviations
