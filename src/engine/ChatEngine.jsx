@@ -359,6 +359,23 @@ export default function ChatEngine({ conversationId, title, conversationPrompt, 
           continue;
         }
 
+        // Force-split multiple questions crammed into one chunk
+        // Split on sentence boundaries where a "?" is followed by another sentence
+        const multiQ = chunk.match(/\?/g);
+        if (multiQ && multiQ.length > 1) {
+          const sentences = chunk.split(/(\?)\s+/);
+          let current = "";
+          for (let s = 0; s < sentences.length; s++) {
+            current += sentences[s];
+            if (sentences[s] === "?") {
+              chunks.push(current.trim());
+              current = "";
+            }
+          }
+          if (current.trim()) chunks.push(current.trim());
+          continue;
+        }
+
         chunks.push(chunk);
       }
 
@@ -374,20 +391,24 @@ export default function ChatEngine({ conversationId, title, conversationPrompt, 
       }).filter(c => c && c.trim().length > 0);
 
       // THIRD PASS: One question per response — truncate after the first answerable question.
-      // Find the first chunk that ends with "?" (ignoring [VISUAL:...] tags).
+      // Find the first chunk that contains "?" (ignoring [VISUAL:...] tags).
       // Keep everything up to and including that chunk. Drop the rest.
       // This is a hard code-level enforcement — the AI cannot override it.
       const truncated = [];
       let foundQuestion = false;
       for (const chunk of finalChunks) {
-        truncated.push(chunk);
         // Skip VISUAL tags — they are not questions
-        if (/^\[VISUAL:[^\]]+\]$/.test(chunk)) continue;
-        // Check if this chunk ends with a question mark
-        if (/\?\s*$/.test(chunk) && !foundQuestion) {
+        if (/^\[VISUAL:[^\]]+\]$/.test(chunk)) {
+          truncated.push(chunk);
+          continue;
+        }
+        // If this chunk contains a question mark, it is a question
+        if (/\?/.test(chunk)) {
+          truncated.push(chunk);
           foundQuestion = true;
           break;
         }
+        truncated.push(chunk);
       }
       // Use truncated if we found a question, otherwise keep all (edge case: no question at all)
       const paced = foundQuestion ? truncated : finalChunks;
